@@ -32,16 +32,21 @@ def _ask_conv_format() -> str | None:
     return {"2": "jpg", "3": "avif"}.get(op, None)
 
 
-def process_download(url: str, output_path: str, conv_format: str | None, cookies: str | None):
+def process_download(url: str, output_path: str,
+                     conv_format: str | None, cookies: str | None) -> bool:
+    """
+    Descarga un manga completo dado su URL.
+    Retorna True si tuvo éxito, False si hubo algún fallo.
+    """
     # 1 ── Identificar scraper
     scraper = ScraperFactory.get_scraper(url)
     if not scraper:
         print(_c("91;1", f"\n[!] No hay soporte para esta URL: {url}"))
-        return
+        return False
 
     # 2 ── Sesión y Engine
-    sm     = SessionManager(cookies_file=cookies)
-    engine = DownloadEngine(sm.get_session(), max_workers=8)
+    sm      = SessionManager(cookies_file=cookies)
+    engine  = DownloadEngine(sm.get_session(), max_workers=8)
     session = sm.get_session()
 
     # 3 ── ID y carpeta de destino
@@ -51,7 +56,7 @@ def process_download(url: str, output_path: str, conv_format: str | None, cookie
     print(_c("96;1", f"\n[*] Iniciando descarga: {cid}"))
     print(_c("90",   f"  Carpeta temporal : {dest_dir}"))
 
-    # 4 ── Metadata (antes del probing para no hacer dos requests)
+    # 4 ── Metadata
     print(_c("93;1", "  Obteniendo metadata..."))
     meta = scraper.get_metadata(session, cid)
     print(_c("90",   f"  Título           : {meta.get('Title', '?')}"))
@@ -62,7 +67,7 @@ def process_download(url: str, output_path: str, conv_format: str | None, cookie
 
     if not tasks:
         print(_c("91;1", "[!] No se encontraron imágenes o el sitio bloqueó la petición."))
-        return
+        return False
 
     print(_c("97;1", f"  {len(tasks)} imágenes encontradas. Descargando en paralelo...\n"))
 
@@ -78,20 +83,36 @@ def process_download(url: str, output_path: str, conv_format: str | None, cookie
         print(_c("93;1", "\n[!] Descarga incompleta. Se conservaron los archivos temporales."))
         print(_c("90",   f"    Revisa los archivos en: {dest_dir}"))
 
+    return success
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Multi-Site Hentai Downloader")
-    parser.add_argument("url",       nargs="?",  help="URL del manga")
-    parser.add_argument("--output",  "-o",       help="Ruta de salida")
-    parser.add_argument("--cookies", "-c",       help="Archivo de cookies")
-    parser.add_argument("--format",  "-f",       choices=["jpg", "avif"],
+    parser = argparse.ArgumentParser(description="TMD Manga Downloader")
+    parser.add_argument("url",       nargs="?",         help="URL de un manga")
+    parser.add_argument("--batch",   "-b",              help="Archivo .txt con lista de URLs")
+    parser.add_argument("--output",  "-o",              help="Ruta de salida")
+    parser.add_argument("--cookies", "-c",              help="Archivo de cookies")
+    parser.add_argument("--format",  "-f", choices=["jpg", "avif"],
                         help="Convertir imágenes a este formato")
     args = parser.parse_args()
 
-    # ── Modo no-interactivo (URL por argumento) ──────────────────────────────
+    output = args.output or get_output_path()
+
+    # ── Modo no-interactivo: URL única ───────────────────────────────────────
     if args.url:
-        output = args.output or get_output_path()
         process_download(args.url, output, args.format, args.cookies)
+        return
+
+    # ── Modo no-interactivo: lote desde CLI ──────────────────────────────────
+    if args.batch:
+        from utils.BatchManager import ensure_batch_file, load_urls, run_batch
+        if not ensure_batch_file():
+            return  # se acaba de crear la plantilla, el usuario debe rellenarla
+        urls = load_urls()
+        if not urls:
+            print(_c("93;1", "[!] lista.txt no contiene URLs válidas."))
+            return
+        run_batch(urls, process_download, output, args.format, args.cookies)
         return
 
     # ── Modo interactivo ─────────────────────────────────────────────────────
@@ -102,11 +123,13 @@ def main():
         ui_banner()
         print(_c("97;1", "  MENU PRINCIPAL"))
         print("  [1] Descargar manga")
-        print("  [2] Ver historial")
-        print("  [3] Salir")
+        print("  [2] Descarga en lote  (.txt)")
+        print("  [3] Ver historial")
+        print("  [4] Salir")
 
         op = _ask(_c("93;1", "\n  Opcion > "))
 
+        # ── Descarga individual ──────────────────────────────────────────────
         if op == "1":
             _cls()
             ui_banner()
@@ -116,14 +139,43 @@ def main():
             if not url:
                 continue
 
-            output     = _ask_output_path()
-            conv_fmt   = _ask_conv_format()
-            cookies    = None   # en interactivo no pedimos cookies (se puede extender)
+            output   = _ask_output_path()
+            conv_fmt = _ask_conv_format()
 
-            process_download(url, output, conv_fmt, cookies)
+            process_download(url, output, conv_fmt, cookies=None)
             _pause()
 
+        # ── Descarga en lote ─────────────────────────────────────────────────
         elif op == "2":
+            _cls()
+            ui_banner()
+            print(_c("97;1", "  DESCARGA EN LOTE\n"))
+
+            from utils.BatchManager import BATCH_FILE, ensure_batch_file, load_urls, run_batch
+
+            print(_c("90", f"  Archivo de lista: {BATCH_FILE}\n"))
+
+            if not ensure_batch_file():
+                # Se acaba de crear la plantilla, el usuario debe rellenarla
+                _pause()
+                continue
+
+            urls = load_urls()
+            if not urls:
+                print(_c("93;1", "  [!] lista.txt no contiene URLs válidas."))
+                print(_c("90",   f"      Edita el archivo y añade una URL por línea."))
+                _pause()
+                continue
+
+            print(_c("92;1", f"  {len(urls)} URL(s) encontradas."))
+            output   = _ask_output_path()
+            conv_fmt = _ask_conv_format()
+
+            run_batch(urls, process_download, output, conv_fmt, cookies=None)
+            _pause()
+
+        # ── Historial ────────────────────────────────────────────────────────
+        elif op == "3":
             _cls()
             ui_banner()
             print(_c("97;1", "  HISTORIAL (últimas 50 descargas)\n"))
@@ -135,7 +187,7 @@ def main():
                 print(_c("90", "  No hay descargas registradas aún."))
             _pause()
 
-        elif op == "3":
+        elif op == "4":
             break
 
 
