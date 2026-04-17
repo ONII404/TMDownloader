@@ -1,6 +1,6 @@
-# Folder to ignore
-.vscode/
-# Files to ignore
+# Carpetas a ignorar
+.vscode
+
+# Archivos específicos
 .tmo_config.json
 .tmohentei_history.txt
-tmohentai_downloader.py
