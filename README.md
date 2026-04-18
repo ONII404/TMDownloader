@@ -156,7 +156,7 @@ tmd-downloader/
 
 | Sitio               | Scraper                 | Metadata extraída                              |
 |---------------------|-------------------------|------------------------------------------------|
-| `tmohentai.com`     | `TMOHentaiScraper`      | Título, tags, idioma                           |
+| `tmohentai.com`     | `TMOHentaiScraper`      |                                                |
 | `lectorhentai.com`  | `LectorHentaiScraper`   | Título, autor, géneros, tags, idioma, año      |
 
 ---
