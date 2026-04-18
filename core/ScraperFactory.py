@@ -1,8 +1,12 @@
 # /core/ScraperFactory.py
 from scrapers.TMOHentaiScraper import TMOHentaiScraper
+from scrapers.LectorHentaiScraper import LectorHentaiScraper
 
 class ScraperFactory:
-    _scrapers = [TMOHentaiScraper()] # Lista de sitios soportados
+    _scrapers = [
+        TMOHentaiScraper(),
+        LectorHentaiScraper(),
+    ]
 
     @classmethod
     def get_scraper(cls, url: str):

@@ -1,5 +1,31 @@
 # main.py
 import sys
+import subprocess
+
+# ── Auto-instalación de dependencias ────────────────────────────────────────
+_REQUIRED = ["requests", "cloudscraper"]
+_OPTIONAL = {"Pillow": "Pillow"}   # nombre pip : nombre import
+
+def _ensure_deps():
+    missing = []
+    for pkg in _REQUIRED:
+        try:
+            __import__(pkg)
+        except ImportError:
+            missing.append(pkg)
+
+    if missing:
+        print(f"[setup] Instalando dependencias: {', '.join(missing)}")
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--quiet",
+             "--break-system-packages", *missing],
+            stderr=subprocess.DEVNULL,
+        )
+        print("[setup] Dependencias instaladas. Continuando...\n")
+
+_ensure_deps()
+
+# ── Imports normales (después de garantizar dependencias) ───────────────────
 import argparse
 
 from core.Session import SessionManager
@@ -12,7 +38,6 @@ from utils.ui import ui_banner, _c, _cls, _pause, _ask
 
 
 def _ask_output_path() -> str:
-    """Pregunta la ruta de salida mostrando la última usada como default."""
     last = get_output_path()
     print(_c("90", f"  Ruta de salida [{last}]"))
     val = _ask(_c("93;1", "  Ruta (Enter para usar la de arriba) > "))
@@ -22,7 +47,6 @@ def _ask_output_path() -> str:
 
 
 def _ask_conv_format() -> str | None:
-    """Pregunta si convertir imágenes y a qué formato."""
     print()
     print(_c("97;1", "  Formato de imágenes:"))
     print("  [1] Mantener originales (webp/jpg/png)")
@@ -34,35 +58,26 @@ def _ask_conv_format() -> str | None:
 
 def process_download(url: str, output_path: str,
                      conv_format: str | None, cookies: str | None) -> bool:
-    """
-    Descarga un manga completo dado su URL.
-    Retorna True si tuvo éxito, False si hubo algún fallo.
-    """
-    # 1 ── Identificar scraper
     scraper = ScraperFactory.get_scraper(url)
     if not scraper:
         print(_c("91;1", f"\n[!] No hay soporte para esta URL: {url}"))
         return False
 
-    # 2 ── Sesión y Engine
     sm      = SessionManager(cookies_file=cookies)
     engine  = DownloadEngine(sm.get_session(), max_workers=8)
     session = sm.get_session()
 
-    # 3 ── ID y carpeta de destino
     cid      = scraper.extract_id(url)
     dest_dir = FileManager.prepare_dir(output_path, cid)
 
     print(_c("96;1", f"\n[*] Iniciando descarga: {cid}"))
     print(_c("90",   f"  Carpeta temporal : {dest_dir}"))
 
-    # 4 ── Metadata
     print(_c("93;1", "  Obteniendo metadata..."))
     meta = scraper.get_metadata(session, cid)
     print(_c("90",   f"  Título           : {meta.get('Title', '?')}"))
 
-    # 5 ── Probing de imágenes
-    print(_c("93;1", "  Buscando imágenes en el CDN..."))
+    print(_c("93;1", "  Buscando imágenes..."))
     tasks = scraper.get_image_tasks(session, cid, dest_dir)
 
     if not tasks:
@@ -71,10 +86,8 @@ def process_download(url: str, output_path: str,
 
     print(_c("97;1", f"  {len(tasks)} imágenes encontradas. Descargando en paralelo...\n"))
 
-    # 6 ── Descarga paralela
     success = engine.download_manga(tasks)
 
-    # 7 ── Post-procesamiento
     if success:
         cbz_file = FileManager.compress_and_clean(dest_dir, meta=meta, conv_format=conv_format)
         HistoryManager().add(url)
@@ -89,7 +102,8 @@ def process_download(url: str, output_path: str,
 def main():
     parser = argparse.ArgumentParser(description="TMD Manga Downloader")
     parser.add_argument("url",       nargs="?",         help="URL de un manga")
-    parser.add_argument("--batch",   "-b",              help="Archivo .txt con lista de URLs")
+    parser.add_argument("--batch",   "-b",              help="Archivo .txt con lista de URLs",
+                        action="store_true")
     parser.add_argument("--output",  "-o",              help="Ruta de salida")
     parser.add_argument("--cookies", "-c",              help="Archivo de cookies")
     parser.add_argument("--format",  "-f", choices=["jpg", "avif"],
@@ -107,7 +121,7 @@ def main():
     if args.batch:
         from utils.BatchManager import ensure_batch_file, load_urls, run_batch
         if not ensure_batch_file():
-            return  # se acaba de crear la plantilla, el usuario debe rellenarla
+            return
         urls = load_urls()
         if not urls:
             print(_c("93;1", "[!] lista.txt no contiene URLs válidas."))
@@ -129,52 +143,39 @@ def main():
 
         op = _ask(_c("93;1", "\n  Opcion > "))
 
-        # ── Descarga individual ──────────────────────────────────────────────
         if op == "1":
             _cls()
             ui_banner()
             print(_c("97;1", "  DESCARGAR MANGA\n"))
-
             url = _ask(_c("96;1", "  URL / ID > "))
             if not url:
                 continue
-
             output   = _ask_output_path()
             conv_fmt = _ask_conv_format()
-
             process_download(url, output, conv_fmt, cookies=None)
             _pause()
 
-        # ── Descarga en lote ─────────────────────────────────────────────────
         elif op == "2":
             _cls()
             ui_banner()
             print(_c("97;1", "  DESCARGA EN LOTE\n"))
-
             from utils.BatchManager import BATCH_FILE, ensure_batch_file, load_urls, run_batch
-
             print(_c("90", f"  Archivo de lista: {BATCH_FILE}\n"))
-
             if not ensure_batch_file():
-                # Se acaba de crear la plantilla, el usuario debe rellenarla
                 _pause()
                 continue
-
             urls = load_urls()
             if not urls:
                 print(_c("93;1", "  [!] lista.txt no contiene URLs válidas."))
                 print(_c("90",   f"      Edita el archivo y añade una URL por línea."))
                 _pause()
                 continue
-
             print(_c("92;1", f"  {len(urls)} URL(s) encontradas."))
             output   = _ask_output_path()
             conv_fmt = _ask_conv_format()
-
             run_batch(urls, process_download, output, conv_fmt, cookies=None)
             _pause()
 
-        # ── Historial ────────────────────────────────────────────────────────
         elif op == "3":
             _cls()
             ui_banner()
