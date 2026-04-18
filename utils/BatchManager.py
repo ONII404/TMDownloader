@@ -1,13 +1,18 @@
 # /utils/BatchManager.py
 """
 Lee una lista de URLs desde lista.txt en la raíz del proyecto.
-Cada manga se descarga completamente antes de pasar al siguiente.
+Cada manga se descarga completamente antes de pasar al siguiente,
+con una pausa configurable entre descargas para evitar baneos.
 """
+import time
 from pathlib import Path
 from utils.ui import _c
 
 # Ruta fija: lista.txt en la raíz del proyecto (un nivel arriba de /utils/)
 BATCH_FILE = Path(__file__).parent.parent / "lista.txt"
+
+# Pausa en segundos entre la descarga de un manga y el siguiente
+DELAY_BETWEEN_DOWNLOADS = 5
 
 _TEMPLATE = """\
 # TMD - Lista de descargas en lote
@@ -56,16 +61,23 @@ def load_urls() -> list[str]:
     return urls
 
 
-def run_batch(urls: list[str], download_fn,
-              output_path: str, conv_format: str | None, cookies: str | None) -> dict:
+def run_batch(
+    urls: list[str],
+    download_fn,
+    output_path: str,
+    conv_format: str | None,
+    cookies: str | None,
+    delay: int = DELAY_BETWEEN_DOWNLOADS,
+) -> dict:
     """
     Ejecuta download_fn para cada URL de la lista secuencialmente.
+    Espera `delay` segundos entre descargas (excepto tras la última).
     Retorna dict con listas 'ok' y 'failed'.
     """
     total  = len(urls)
     ok     = []
     failed = []
-    sep    = "─" * 43
+    sep    = "─" * 50
 
     print(_c("97;1", f"\n  DESCARGA EN LOTE — {total} manga(s)\n"))
 
@@ -80,6 +92,12 @@ def run_batch(urls: list[str], download_fn,
             print(_c("91;1", f"  [!] Error inesperado: {e}"))
             failed.append(url)
 
+        # Pausa entre descargas (no después de la última)
+        if i < total and delay > 0:
+            print(_c("90", f"\n  ⏳ Esperando {delay}s antes de la siguiente descarga..."))
+            time.sleep(delay)
+
+    # Resumen final
     print(_c("90",   f"\n  {sep}"))
     print(_c("97;1",  "  RESUMEN DEL LOTE"))
     print(_c("92;1",  f"  ✓ Completados : {len(ok)}"))

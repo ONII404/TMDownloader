@@ -6,12 +6,10 @@ URLs soportadas:
     https://lectorhentai.com/manga/{id}/{slug}
 
 Estrategia de imágenes:
-    1. Visita la página del manga para obtener metadata y el total de páginas
-       (los thumbnails del sprite tienen alt="Imagenes N/TOTAL").
-    2. Visita la página del reader (/read/{id}/{slug}) para extraer las URLs
-       reales de las imágenes desde el JS embebido o el DOM.
-    3. Si el reader no devuelve URLs parseables, construye las URLs directamente
-       desde el CDN usando el patrón del sprite (img5.giolandscaping.com/library/{id}/...).
+    1. Visita la página del reader (/read/{id}/{slug}) y extrae el array
+       "images" del bloque ts_reader.run({...}).
+    2. Fallback: construye URLs desde el sprite de la página del manga
+       (solo funciona con el patrón numérico antiguo).
 """
 import re
 import json
@@ -38,7 +36,6 @@ class LectorHentaiScraper(BaseScraper):
         m = re.search(r"/manga/(\d+)/([^/?#]+)", url)
         if m:
             return f"{m.group(1)}-{m.group(2)}"
-        # fallback: solo el segmento final de la URL
         return url.rstrip("/").split("/")[-1]
 
     def get_image_tasks(self, session, cid: str, dest_dir) -> list:
@@ -50,20 +47,16 @@ class LectorHentaiScraper(BaseScraper):
         manga_url  = f"{self._BASE}/manga/{numeric_id}/{slug}"
         reader_url = f"{self._BASE}/read/{numeric_id}/{slug}"
 
-        tasks   = []
-        referer = manga_url
-
-        # 1 ── Intentar extraer imágenes del reader
         img_urls = self._fetch_reader_images(session, reader_url, manga_url)
 
         if not img_urls:
-            # 2 ── Fallback: construir URLs desde el CDN usando el patrón del sprite
             img_urls = self._build_cdn_urls(session, manga_url, numeric_id)
 
+        tasks = []
         for i, url in enumerate(img_urls):
-            ext      = self._guess_ext(url)
-            dest     = Path(dest_dir) / f"{i:03d}{ext}"
-            tasks.append((url, dest, referer))
+            ext  = self._guess_ext(url)
+            dest = Path(dest_dir) / f"{i:03d}{ext}"
+            tasks.append((url, dest, manga_url))
 
         return tasks
 
@@ -77,10 +70,8 @@ class LectorHentaiScraper(BaseScraper):
 
         try:
             resp = session.get(manga_url, timeout=15)
-            if resp.status_code != 200:
-                return meta
-            html = resp.text
-            meta.update(self._parse_metadata(html, manga_url))
+            if resp.status_code == 200:
+                meta.update(self._parse_metadata(resp.text, manga_url))
         except Exception:
             pass
 
@@ -89,10 +80,6 @@ class LectorHentaiScraper(BaseScraper):
     # ── Internos ─────────────────────────────────────────────────────────────
 
     def _split_cid(self, cid: str) -> tuple[str, str]:
-        """
-        Separa '{numeric_id}-{slug}' en (numeric_id, slug).
-        Si no tiene guión (raro), trata todo como id y slug vacío.
-        """
         parts = cid.split("-", 1)
         if len(parts) == 2:
             return parts[0], parts[1]
@@ -100,51 +87,47 @@ class LectorHentaiScraper(BaseScraper):
 
     def _fetch_reader_images(self, session, reader_url: str, referer: str) -> list[str]:
         """
-        Visita la página del reader y extrae las URLs de imágenes.
+        Visita la página del reader y extrae las URLs de imágenes desde
+        el bloque ts_reader.run({...}).
 
-        El reader de lectorhentai usa ts_reader.run({...}) con este patrón:
-            "images": ["//img5.giolandscaping.com/library/ID/000.webp", ...]
-
+        Las imágenes pueden tener nombres numéricos (000.webp) O hashes
+        aleatorios (6zjtO1.jpg) — ambos casos son soportados.
         Las URLs vienen sin protocolo (//...), se normalizan a https://.
         """
-        def _fix_url(u: str) -> str:
-            """Normaliza URLs protocol-relative a https://"""
-            if u.startswith("//"):
-                return "https:" + u
-            return u
+        def _fix(u: str) -> str:
+            return "https:" + u if u.startswith("//") else u
 
         try:
-            headers = {"Referer": referer}
-            resp = session.get(reader_url, headers=headers, timeout=15)
+            resp = session.get(reader_url, headers={"Referer": referer}, timeout=15)
             if resp.status_code != 200:
                 return []
             html = resp.text
 
-            # ── Patrón 1 (principal): "images": [...] dentro de ts_reader.run()
-            # Captura el array JSON que sigue a `"images":` o `"images" :`
-            m = re.search(
-                r'"images"\s*:\s*(\[[\s\S]*?\])',
-                html
-            )
+            # ── Patrón principal: array "images" dentro de ts_reader.run()
+            # Captura el JSON array completo que sigue a `"images":`
+            m = re.search(r'"images"\s*:\s*(\[[\s\S]*?\])', html)
             if m:
                 try:
                     urls = json.loads(m.group(1))
                     if isinstance(urls, list) and urls:
-                        result = [_fix_url(u) for u in urls
-                                  if isinstance(u, str) and "giolandscaping.com" in u]
+                        # Aceptar cualquier URL de giolandscaping.com,
+                        # sin importar si el filename es numérico o hash
+                        result = [
+                            _fix(u) for u in urls
+                            if isinstance(u, str) and "giolandscaping.com" in u
+                        ]
                         if result:
                             return result
                 except Exception:
                     pass
 
-            # ── Patrón 2: cualquier URL //img5.giolandscaping.com/library/ID/NNN.webp
-            # Captura URLs protocol-relative o con https
+            # ── Fallback: cualquier URL de giolandscaping en el HTML
+            # (cubre casos donde ts_reader.run usa una estructura distinta)
             raw = re.findall(
-                r'(?:https?:)?//img\d*\.giolandscaping\.com/library/\d+/\d{3}\.(?:webp|jpg|jpeg|png)',
+                r'(?:https?:)?//img\d*\.giolandscaping\.com/library/\d+/[^"\s]+',
                 html
             )
-            valid = [_fix_url(u) for u in raw
-                     if "_sprite" not in u and "_cover" not in u]
+            valid = [_fix(u) for u in raw if "_sprite" not in u and "_cover" not in u]
             if valid:
                 seen, deduped = set(), []
                 for u in valid:
@@ -153,34 +136,15 @@ class LectorHentaiScraper(BaseScraper):
                         deduped.append(u)
                 return deduped
 
-            # ── Patrón 3: img[src] del readerarea (primera imagen cargada)
-            # El HTML tiene <img ... src="//img5.giolandscaping.com/library/ID/000.webp">
-            # y el total de páginas en los <option> del select
-            m_img = re.search(
-                r'<img[^>]+class="ts-main-image"[^>]+src="([^"]+)"',
-                html
-            )
-            m_total = re.search(r'<option[^>]*>\d+/(\d+)</option>', html)
-            if m_img and m_total:
-                first_url = _fix_url(m_img.group(1))
-                total     = int(m_total.group(1))
-                # Construir el resto de URLs incrementando el número de página
-                base_m = re.match(r'(https://[^/]+/library/\d+/)(\d{3})(\.(?:webp|jpg|jpeg|png))', first_url)
-                if base_m:
-                    base, _, ext = base_m.group(1), base_m.group(2), base_m.group(3)
-                    return [f"{base}{i:03d}{ext}" for i in range(total)]
-
         except Exception:
             pass
+
         return []
 
     def _build_cdn_urls(self, session, manga_url: str, numeric_id: str) -> list[str]:
         """
-        Fallback: si el reader no es accesible, obtiene el total de páginas
-        del sprite (alt="Imagenes N/TOTAL") y construye las URLs directamente.
-        El CDN usa el patrón:
-            img5.giolandscaping.com/library/{numeric_id}/{hash}_{N}.webp
-        donde el hash se extrae del sprite URL de la página del manga.
+        Fallback legacy: construye URLs desde el sprite con patrón numérico.
+        Solo funciona en mangas con el formato antiguo de CDN (000.webp).
         """
         try:
             resp = session.get(manga_url, timeout=15)
@@ -188,8 +152,6 @@ class LectorHentaiScraper(BaseScraper):
                 return []
             html = resp.text
 
-            # Extraer el hash del sprite URL
-            # Ejemplo: //img5.giolandscaping.com/library/90168/69cb128e62dfe_sprite_0.webp
             m = re.search(
                 r'//img5\.giolandscaping\.com/library/\d+/([a-f0-9]+)_sprite',
                 html
@@ -198,30 +160,19 @@ class LectorHentaiScraper(BaseScraper):
                 return []
             file_hash = m.group(1)
 
-            # Extraer total de páginas del último alt="Imagenes N/TOTAL"
             totals = re.findall(r'alt="Imagenes \d+/(\d+)"', html)
             if not totals:
                 return []
             total = int(totals[-1])
 
-            # Construir URLs — el CDN las nombra {hash}_{index}.webp (base 0)
-            # Verificar el patrón real con la primera imagen
-            base = f"https://img5.giolandscaping.com/library/{numeric_id}/{file_hash}"
-
-            # Intentar con sufijo _{N} primero, luego sin sufijo
+            base     = f"https://img5.giolandscaping.com/library/{numeric_id}/{file_hash}"
             test_url = f"{base}_0.webp"
-            ok = self._head_ok(session, test_url, manga_url)
-            if ok:
+            if self._head_ok(session, test_url, manga_url):
                 return [f"{base}_{i}.webp" for i in range(total)]
-
-            # Segundo patrón: directamente numerado (0.webp, 1.webp, ...)
-            test_url2 = f"{base}_page_1.webp"
-            ok2 = self._head_ok(session, test_url2, manga_url)
-            if ok2:
-                return [f"{base}_page_{i+1}.webp" for i in range(total)]
 
         except Exception:
             pass
+
         return []
 
     def _head_ok(self, session, url: str, referer: str) -> bool:
@@ -232,15 +183,15 @@ class LectorHentaiScraper(BaseScraper):
             return False
 
     def _guess_ext(self, url: str) -> str:
-        """Extrae la extensión de la URL, con fallback a .webp."""
+        """Extrae la extensión de la URL, con fallback a .jpg."""
         m = re.search(r'\.(webp|jpg|jpeg|png|gif)(?:[?#]|$)', url, re.IGNORECASE)
-        return f".{m.group(1).lower()}" if m else ".webp"
+        return f".{m.group(1).lower()}" if m else ".jpg"
 
     def _parse_metadata(self, html: str, manga_url: str) -> dict:
         """Parsea los campos de metadata del HTML de la página del manga."""
         meta = {}
 
-        # Título — limpiar sufijo " en Español | Leer Online Gratis"
+        # Título
         m = re.search(r'<h1[^>]+class="entry-title"[^>]*>([^<]+)</h1>', html)
         if m:
             title = re.sub(r'\s+en Español.*$', '', m.group(1).strip())
@@ -266,37 +217,38 @@ class LectorHentaiScraper(BaseScraper):
         if m:
             genres = re.findall(r'>([^<]+)</a>', m.group(1))
             if genres:
-                meta["Genre"] = genres[0].strip()   # primer género como genre principal
+                meta["Genre"] = genres[0].strip()
 
-        # Tags
-        m = re.search(
+        # Tags (géneros + tags combinados)
+        genre_list = []
+        mg = re.search(
+            r'<b>Generos:</b>.*?<span class="mgen">(.*?)</span>',
+            html, re.DOTALL
+        )
+        if mg:
+            genre_list = re.findall(r'>([^<]+)</a>', mg.group(1))
+
+        mt = re.search(
             r'<b>Tags:</b>.*?<span class="mgen">(.*?)</span>',
             html, re.DOTALL
         )
-        if m:
-            tags = re.findall(r'>([^<]+)</a>', m.group(1))
-            if tags:
-                # Combinar géneros + tags para el campo Tags del ComicInfo
-                all_genres = re.findall(
-                    r'<b>Generos:</b>.*?<span class="mgen">(.*?)</span>',
-                    html, re.DOTALL
-                )
-                genre_list = []
-                if all_genres:
-                    genre_list = re.findall(r'>([^<]+)</a>', all_genres[0])
-                combined = genre_list + tags
+        if mt:
+            tags = re.findall(r'>([^<]+)</a>', mt.group(1))
+            combined = genre_list + tags
+            if combined:
                 meta["Tags"] = ", ".join(t.strip() for t in combined)
 
         # Idioma
         m = re.search(r'Idioma\s*<i>([^<]+)</i>', html)
         if m:
-            lang = m.group(1).strip().lower()
-            lang_map = {"español": "es", "ingles": "en", "inglés": "en",
-                        "japanese": "ja", "japonés": "ja",
-                        "portuguese": "pt", "portugués": "pt"}
-            meta["LanguageISO"] = lang_map.get(lang, "es")
+            lang_map = {
+                "español": "es", "ingles": "en", "inglés": "en",
+                "japanese": "ja", "japonés": "ja",
+                "portuguese": "pt", "portugués": "pt",
+            }
+            meta["LanguageISO"] = lang_map.get(m.group(1).strip().lower(), "es")
 
-        # Año de publicación
+        # Año
         m = re.search(r'<time datetime="(\d{4})-\d{2}-\d{2}', html)
         if m:
             meta["Year"] = m.group(1)
@@ -307,9 +259,9 @@ class LectorHentaiScraper(BaseScraper):
             html, re.DOTALL
         )
         if m:
-            revista_links = re.findall(r'>([^<]+)</a>', m.group(1))
-            if revista_links:
-                meta["Publisher"] = revista_links[0].strip()
+            revistas = re.findall(r'>([^<]+)</a>', m.group(1))
+            if revistas:
+                meta["Publisher"] = revistas[0].strip()
 
         meta["Source"] = self._source_name
         meta["Web"]    = manga_url
