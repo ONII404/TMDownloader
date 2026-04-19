@@ -33,7 +33,7 @@ termux-setup-storage
 
 3.- Instalamos TMDownloader
 ```bash
-git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDownloader && echo "alias TMD='cd /storage/emulated/0/TMDownloader && python3 main.py'" >> ~/.bashrc && source ~/.bashrc && echo "✅ Alias TMD creado y activado correctamente. Ahora prueba escribiendo TMD"
+git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDownloader && echo "alias tmd='cd /storage/emulated/0/TMDownloader && python3 main.py'" >> ~/.bashrc && source ~/.bashrc && echo -e "\n✅ Alias tmd creado y activado correctamente. \nAhora prueba escribiendo: tmd"
 ```
 
 ### Linux / Windows
@@ -52,7 +52,7 @@ python main.py
 
 ### Menú interactivo
 
-Usar `TMD` ejecutara el Menú
+Usar `tmd` ejecutara el Menú
 ```
   MENU PRINCIPAL
   [1] Descargar manga
@@ -65,16 +65,16 @@ Usar `TMD` ejecutara el Menú
 
 ```bash
 # Descarga individual
-TMD https://tmohentai.com/contents/69b6fd0b4a6fa
+tmd https://tmohentai.com/contents/69b6fd0b4a6fa
 
 # Con ruta de salida y conversión a JPG
-TMD https://tmohentai.com/contents/69b6fd0b4a6fa -o ~/Manga -f jpg
+tmd https://tmohentai.com/contents/69b6fd0b4a6fa -o ~/Manga -f jpg
 
 # Descarga en lote desde lista.txt
-TMD --batch
+tmd --batch
 
 # Lote con ruta de salida
-TMD --batch -o /storage/emulated/0/Manga
+tmd --batch -o /storage/emulated/0/Manga
 ```
 
 | Argumento   | Corto | Descripción                                   |
