@@ -19,21 +19,28 @@ Descargador de manga con soporte para múltiples sitios, empaquetado en `.cbz` c
 
 ### Termux (Android)
 1.- Preparamos el entorno
+
 ```bash
 pkg update && pkg upgrade -y && pkg install python git -y
 ```
 2.- Permitimos de Termux acceda al almacenamiento
+
 ```Bash
 termux-setup-storage
 ```
 
 3.- Instalamos TMDownloader
+
 ```bash
-git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDownloader && echo "alias tmd='cd /storage/emulated/0/TMDownloader && python3 main.py'" >> ~/.bashrc && source ~/.bashrc && echo -e "\n✅ Instalado. Ahora puedes usar: tmd"
+git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDownloader
+```
+4.- Configurar alias
+
+```Bash
+echo "alias tmd='cd /storage/emulated/0/TMDownloader && python3 main.py'" >> ~/.bashrc && source ~/.bashrc && echo -e "\n✅ Instalado. Ahora puedes usar: tmd"
 ```
 
 ### Windows
-
 1.- Requisitos previos
 
 - **Python 3**: Descárgalo de [python.org](https://www.python.org/). **_Importante_**: _Marca la casilla "Add Python to PATH" durante la instalación_.
