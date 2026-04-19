@@ -1,11 +1,14 @@
 # /core/ScraperFactory.py
-from scrapers.TMOHentaiScraper import TMOHentaiScraper
+from scrapers.TMOHentaiScraper    import TMOHentaiScraper
 from scrapers.LectorHentaiScraper import LectorHentaiScraper
+from scrapers.ONFMangasScraper    import ONFMangasScraper
+
 
 class ScraperFactory:
     _scrapers = [
         TMOHentaiScraper(),
         LectorHentaiScraper(),
+        ONFMangasScraper(),
     ]
 
     @classmethod

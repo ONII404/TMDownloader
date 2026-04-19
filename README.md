@@ -22,12 +22,18 @@ Descargador modular de manga con soporte para múltiples sitios, empaquetado en 
 ## Instalación
 
 ### Termux (Android)
-
+1.- Preparamos el entorno
 ```bash
-pkg install python git
-git clone https://github.com/tu-usuario/tmd-downloader
-cd tmd-downloader
-python main.py   # instala dependencias automáticamente en el primer arranque
+pkg update && pkg upgrade -y && pkg install python git
+```
+2.- Permitimos de Termux acceda al almacenamiento
+```Bash
+termux-setup-storage
+```
+
+3.- Instalamos TMDownloader
+```bash
+git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/ && echo "alias TMD='cd /storage/emulated/0/TMDownloader && python3 main.py'" >> ~/.bashrc"
 ```
 
 ### Linux / Windows
@@ -47,7 +53,7 @@ python main.py   # instala dependencias automáticamente en el primer arranque
 ### Menú interactivo
 
 ```bash
-python main.py
+TMD
 ```
 
 ```
@@ -62,16 +68,16 @@ python main.py
 
 ```bash
 # Descarga individual
-python main.py https://tmohentai.com/contents/69b6fd0b4a6fa
+TMD https://tmohentai.com/contents/69b6fd0b4a6fa
 
 # Con ruta de salida y conversión a JPG
-python main.py https://tmohentai.com/contents/69b6fd0b4a6fa -o ~/Manga -f jpg
+TMD https://tmohentai.com/contents/69b6fd0b4a6fa -o ~/Manga -f jpg
 
 # Descarga en lote desde lista.txt
-python main.py --batch
+TMD --batch
 
 # Lote con ruta de salida
-python main.py --batch -o /storage/emulated/0/Manga
+TMD --batch -o /storage/emulated/0/Manga
 ```
 
 | Argumento   | Corto | Descripción                                   |
