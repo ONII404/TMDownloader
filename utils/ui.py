@@ -2,6 +2,10 @@
 import os
 import sys
 
+# ── Versión central ───────────────────────────────────────────────────────────
+# Cambia SOLO este valor para actualizar la versión en toda la interfaz.
+__version__ = "2.0"
+
 
 def _c(code: str, text: str) -> str:
     """Aplica color ANSI si el terminal lo soporta."""
@@ -17,6 +21,16 @@ def _stdout_supports_unicode() -> bool:
         return True
     except Exception:
         return False
+
+
+def _detect_platform_label() -> str:
+    """Retorna una etiqueta corta de plataforma para el banner."""
+    if sys.platform == "win32":
+        return "Windows"
+    home = os.environ.get("HOME", "")
+    if "com.termux" in home or os.path.exists("/data/data/com.termux"):
+        return "Termux"
+    return "Linux"
 
 
 def _cls():
@@ -39,20 +53,35 @@ def _ask(prompt: str) -> str:
 
 def ui_banner():
     unicode_ok = _stdout_supports_unicode()
+    platform   = _detect_platform_label()
+    version    = __version__
+
     print()
     if unicode_ok:
-        # TMD en ASCII art
+        # Las primeras 4 filas del ASCII art son iguales
         print(_c("96;1", "  ████████╗███╗   ███╗██████╗ "))
         print(_c("96;1", "  ╚══██╔══╝████╗ ████║██╔══██╗"))
         print(_c("97;1", "     ██║   ██╔████╔██║██║  ██║"))
         print(_c("97;1", "     ██║   ██║╚██╔╝██║██║  ██║"))
-        print(_c("93;1", "     ██║   ██║ ╚═╝ ██║██████╔╝"))
+        # Última fila: las letras TMD en dorado + versión en gris sutil pegada
+        print(
+            _c("93;1", "     ██║   ██║ ╚═╝ ██║██████╔╝") +
+            _c("90",   f"  v{version}")
+        )
         print(_c("93;1", "     ╚═╝   ╚═╝     ╚═╝╚═════╝ "))
     else:
+        # Fallback sin Unicode: cabecera simple con versión inline
         print(_c("96;1", "  ========================================"))
-        print(_c("96;1", "           TMD  Manga Downloader          "))
+        print(
+            _c("96;1", "        TMD  Manga Downloader  ") +
+            _c("90",   f"v{version}    ")
+        )
         print(_c("96;1", "  ========================================"))
+
     print()
-    print(_c("90", "  ") + _c("96", "Manga Downloader") +
-          _c("90", "  -  Arquitectura Modular  -  Termux"))
+    print(
+        _c("90", "  ") +
+        _c("96", "Manga Downloader") +
+        _c("90", f"  —  {platform}")
+    )
     print(_c("90", "  " + ("─" * 43 if unicode_ok else "-" * 43)))
