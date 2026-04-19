@@ -24,7 +24,7 @@ Descargador modular de manga con soporte para múltiples sitios, empaquetado en 
 ### Termux (Android)
 1.- Preparamos el entorno
 ```bash
-pkg update && pkg upgrade -y && pkg install python git
+pkg update && pkg upgrade -y && pkg install python git -y
 ```
 2.- Permitimos de Termux acceda al almacenamiento
 ```Bash
@@ -33,7 +33,7 @@ termux-setup-storage
 
 3.- Instalamos TMDownloader
 ```bash
-git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/ && echo "alias TMD='cd /storage/emulated/0/TMDownloader && python3 main.py'" >> ~/.bashrc"
+git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDownloader && echo "alias TMD='cd /storage/emulated/0/TMDownloader && python3 main.py'" >> ~/.bashrc"
 ```
 
 ### Linux / Windows
