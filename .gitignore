@@ -10,3 +10,5 @@ utils/__pycache__
 cbz_metadata_manager.py
 lista.txt
 
+.tmd_progress.json
+downloads_history.txt

@@ -1,12 +1,31 @@
 # /scrapers/TMOHentaiScraper.py
-from scrapers.BaseScraper import BaseScraper
+"""
+Scraper para https://tmohentai.com/
+
+Soporta:
+  - Descarga individual de capítulos / oneshots
+  - Metadata desde la página web (og:title, tags, autor...)
+  - Metadata enriquecida desde TMOH.json (si existe en la raíz del proyecto)
+
+Emparejamiento TMOH.json:
+  URL descargada : https://tmohentai.com/contents/69b6fd0b4a6fa
+  Campo en JSON  : "url": "/contents/69b6fd0b4a6fa"
+  Clave de match : "69b6fd0b4a6fa"  (parte final de la URL en ambos lados)
+"""
 import re
+import json
 import requests
+from pathlib import Path
+from scrapers.BaseScraper import BaseScraper
+
+# Ruta del JSON de metadata externa (raíz del proyecto)
+_TMOH_JSON = Path(__file__).parent.parent / "TMOH.json"
 
 
 class TMOHentaiScraper(BaseScraper):
 
     _source_name = "TMOHentai"
+    _BASE        = "https://tmohentai.com"
 
     def __init__(self):
         self.cdn_hosts = [
@@ -17,34 +36,89 @@ class TMOHentaiScraper(BaseScraper):
         ]
         self.extensions = [".webp", ".jpg", ".jpeg", ".png"]
 
+        # Índice de metadata del JSON externo: { content_id: meta_dict }
+        self._json_index: dict[str, dict] = {}
+        self._load_tmoh_json()
+
+    # ── Carga de TMOH.json ────────────────────────────────────────────────────
+
+    def _load_tmoh_json(self):
+        """
+        Carga y construye el índice de TMOH.json.
+
+        Estructura esperada del JSON (array de objetos):
+        [
+          {
+            "url":         "/contents/69b6fd0b4a6fa",
+            "title":       "Título del manga",
+            "artist":      "Artista",
+            "author":      "Autor",
+            "description": "Descripción...",
+            "genre":       "Hentai",
+            "chapters":    [{"chapterNumber": "1"}, ...]
+          },
+          ...
+        ]
+
+        El campo "url" puede ser:
+          - "/contents/69b6fd0b4a6fa"
+          - "https://tmohentai.com/contents/69b6fd0b4a6fa"
+          - "69b6fd0b4a6fa"   (solo el ID)
+        """
+        if not _TMOH_JSON.exists():
+            return
+
+        try:
+            data = json.loads(_TMOH_JSON.read_text(encoding="utf-8"))
+            if not isinstance(data, list):
+                return
+
+            for entry in data:
+                raw_url = entry.get("url", "")
+                # Extraer solo el ID (parte final)
+                cid = self._id_from_url(raw_url) or raw_url.strip("/")
+                if cid:
+                    self._json_index[cid] = entry
+
+            if self._json_index:
+                print(f"  [i] TMOH.json cargado: {len(self._json_index)} entradas indexadas.")
+        except Exception as e:
+            print(f"  [!] Error al leer TMOH.json: {e}")
+
+    @staticmethod
+    def _id_from_url(url: str) -> str:
+        """Extrae el ID de contenido del final de la URL de tmohentai."""
+        m = re.search(r"/(?:contents|reader)/([a-zA-Z0-9]+)", url)
+        return m.group(1) if m else ""
+
     # ── Obligatorios ────────────────────────────────────────────────────────
 
     def matches(self, url: str) -> bool:
         return "tmohentai.com" in url or (len(url) == 13 and url.isalnum())
 
     def extract_id(self, url: str) -> str:
-        m = re.search(r"/(?:contents|reader)/([a-zA-Z0-9]+)", url)
-        return m.group(1) if m else url
+        cid = self._id_from_url(url)
+        return cid if cid else url
 
     def get_image_tasks(self, session, cid: str, dest_dir) -> list:
         """
-        Hace probing HEAD para descubrir las imágenes disponibles en el CDN
-        y retorna la lista de tareas para el DownloadEngine.
+        Probing HEAD para descubrir imágenes en el CDN.
+        Retorna lista de (url, dest_path, referer).
         """
-        tasks = []
-        referer = f"https://tmohentai.com/reader/{cid}/cascade"
-        fails = 0
+        tasks   = []
+        referer = f"{self._BASE}/reader/{cid}/cascade"
+        fails   = 0
 
         print(f"  Patrón CDN: https://cache1.tmohentai.com/contents/{cid}/000.webp")
 
         for i in range(1000):
             found = False
-            host = self.cdn_hosts[i % len(self.cdn_hosts)]
+            host  = self.cdn_hosts[i % len(self.cdn_hosts)]
 
             for ext in self.extensions:
                 img_url = f"https://{host}/contents/{cid}/{i:03d}{ext}"
                 if self._head_ok(session, img_url, referer):
-                    dest_file = dest_dir / f"{i:03d}{ext}"
+                    dest_file = Path(dest_dir) / f"{i:03d}{ext}"
                     tasks.append((img_url, dest_file, referer))
                     found = True
                     break
@@ -65,61 +139,131 @@ class TMOHentaiScraper(BaseScraper):
 
     def get_metadata(self, session, cid: str) -> dict:
         """
-        Intenta extraer metadata de la página del manga en tmohentai.com.
-        Si falla o los campos no están, usa valores genéricos del método base.
+        Combina metadata de dos fuentes con prioridad:
+          1. TMOH.json (si existe entrada para el cid)
+          2. Scraping de la página web
+          3. Fallbacks genéricos del BaseScraper
         """
-        meta = super().get_metadata(session, cid)   # base con fallbacks
-        meta["Web"] = f"https://tmohentai.com/contents/{cid}"
+        meta = super().get_metadata(session, cid)
+        meta["Web"] = f"{self._BASE}/contents/{cid}"
 
+        # ── Fuente 1: TMOH.json ────────────────────────────────────────────
+        json_meta = self._meta_from_json(cid)
+
+        # ── Fuente 2: Scraping web ─────────────────────────────────────────
+        web_meta = {}
         try:
-            url  = f"https://tmohentai.com/contents/{cid}"
+            url  = f"{self._BASE}/contents/{cid}"
             resp = session.get(url, timeout=15)
-            if resp.status_code != 200:
-                return meta
-
-            html = resp.text
-
-            # Título (og:title o <title>)
-            m = re.search(r'<meta[^>]+property="og:title"[^>]+content="([^"]+)"', html)
-            if not m:
-                m = re.search(r"<title>([^<]+)</title>", html)
-            if m:
-                title = m.group(1).strip().replace(" | TMOHentai", "").strip()
-                meta["Title"]  = title
-                meta["Series"] = title
-
-            # Autor/artista
-            m = re.search(r'(?:autor|artist)[^<]*<[^>]+>([^<]+)<', html, re.IGNORECASE)
-            if m:
-                meta["Writer"] = m.group(1).strip()
-
-            # Tags / géneros
-            tags = re.findall(r'<a[^>]+/tag/[^>]+>([^<]+)</a>', html)
-            if tags:
-                meta["Tags"]  = ", ".join(t.strip() for t in tags)
-                meta["Genre"] = tags[0].strip() if tags else ""
-
-            # Idioma
-            if re.search(r'español|spanish', html, re.IGNORECASE):
-                meta["LanguageISO"] = "es"
-            elif re.search(r'english', html, re.IGNORECASE):
-                meta["LanguageISO"] = "en"
-            elif re.search(r'japanese', html, re.IGNORECASE):
-                meta["LanguageISO"] = "ja"
-
+            if resp.status_code == 200:
+                web_meta = self._parse_web_metadata(resp.text, cid)
         except Exception:
-            pass  # Si falla el scraping de meta, usamos lo que ya hay
+            pass
+
+        # Merge: web_meta base, json_meta tiene prioridad si tiene el campo
+        meta.update(web_meta)
+        meta.update(json_meta)   # JSON sobreescribe lo scrapeado
+
+        return meta
+
+    def _meta_from_json(self, cid: str) -> dict:
+        """
+        Construye un dict de ComicInfo desde la entrada TMOH.json del cid.
+        Retorna dict vacío si no hay entrada.
+        """
+        entry = self._json_index.get(cid)
+        if not entry:
+            return {}
+
+        meta = {}
+
+        title = entry.get("title", "").strip()
+        if title:
+            meta["Title"]  = title
+            meta["Series"] = title
+
+        artist = entry.get("artist", "").strip()
+        author = entry.get("author", "").strip()
+        writer = ", ".join(filter(None, [author, artist]))
+        if writer:
+            meta["Writer"] = writer
+
+        description = entry.get("description", "").strip()
+        if description:
+            meta["Summary"] = description[:500]
+
+        genre = entry.get("genre", "")
+        if isinstance(genre, list):
+            genre = ", ".join(g.strip() for g in genre if g.strip())
+        elif isinstance(genre, str):
+            genre = genre.strip()
+        if genre:
+            meta["Genre"] = genre
+            meta["Tags"]  = genre
+
+        # Número de capítulo desde el primer elemento de "chapters"
+        chapters = entry.get("chapters", [])
+        if chapters and isinstance(chapters, list):
+            first = chapters[0]
+            num   = first.get("chapterNumber", "") if isinstance(first, dict) else ""
+            if num:
+                meta["Number"] = str(num)
+
+        return meta
+
+    def _parse_web_metadata(self, html: str, cid: str) -> dict:
+        """Extrae metadata scrapeando el HTML de la página del contenido."""
+        meta = {}
+
+        # Título (og:title o <title>)
+        m = re.search(r'<meta[^>]+property="og:title"[^>]+content="([^"]+)"', html)
+        if not m:
+            m = re.search(r"<title>([^<]+)</title>", html)
+        if m:
+            title = m.group(1).strip().replace(" | TMOHentai", "").strip()
+            meta["Title"]  = title
+            meta["Series"] = title
+
+        # Autor/artista
+        m = re.search(r'(?:autor|artist)[^<]*<[^>]+>([^<]+)<', html, re.IGNORECASE)
+        if m:
+            meta["Writer"] = m.group(1).strip()
+
+        # Tags / géneros
+        tags = re.findall(r'<a[^>]+/tag/[^>]+>([^<]+)</a>', html)
+        if tags:
+            meta["Tags"]  = ", ".join(t.strip() for t in tags)
+            meta["Genre"] = tags[0].strip()
+
+        # Idioma
+        if re.search(r'español|spanish', html, re.IGNORECASE):
+            meta["LanguageISO"] = "es"
+        elif re.search(r'english', html, re.IGNORECASE):
+            meta["LanguageISO"] = "en"
+        elif re.search(r'japanese', html, re.IGNORECASE):
+            meta["LanguageISO"] = "ja"
+
+        meta["Source"] = self._source_name
+        meta["Web"]    = f"{self._BASE}/contents/{cid}"
 
         return meta
 
     # ── Interno ─────────────────────────────────────────────────────────────
 
     def _head_ok(self, session, url: str, referer: str) -> bool:
-        """HEAD request tolerante a errores de red."""
+        """HEAD request tolerante a errores de red. Señala bloqueos CF."""
         headers = {"Referer": referer}
         for verify in [True, False]:
             try:
                 r = session.head(url, headers=headers, timeout=10, verify=verify)
+                if r.status_code in {403, 429, 503}:
+                    # Importar aquí para evitar ciclo de imports
+                    try:
+                        from utils.BatchManager import signal_cloudflare
+                        signal_cloudflare()
+                    except ImportError:
+                        pass
+                    return False
                 return r.status_code == 200
             except requests.exceptions.ConnectionError:
                 return False
@@ -131,11 +275,11 @@ class TMOHentaiScraper(BaseScraper):
 
     def get_image_urls(self, session, cid: str):
         """Generador de URLs (compatibilidad con flujos alternativos)."""
-        referer = f"https://tmohentai.com/reader/{cid}/cascade"
-        fails = 0
+        referer = f"{self._BASE}/reader/{cid}/cascade"
+        fails   = 0
         for i in range(1000):
             found = False
-            host = self.cdn_hosts[i % len(self.cdn_hosts)]
+            host  = self.cdn_hosts[i % len(self.cdn_hosts)]
             for ext in self.extensions:
                 img_url = f"https://{host}/contents/{cid}/{i:03d}{ext}"
                 if self._head_ok(session, img_url, referer):

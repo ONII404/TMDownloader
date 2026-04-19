@@ -32,7 +32,7 @@ from core.DownloadEngine import DownloadEngine
 from core.ScraperFactory import ScraperFactory
 from utils.FileManager   import FileManager
 from utils.history       import HistoryManager
-from utils.config        import get_output_path, save_config
+from utils.config        import get_output_path, save_config, load_config
 from utils.ui            import ui_banner, _c, _cls, _pause, _ask
 
 
@@ -97,10 +97,6 @@ def _download_series(
     output_path: str,
     conv_format: str | None,
 ) -> bool:
-    """
-    Descarga todos los capítulos de una serie desde la URL de manga.
-    Cada capítulo se empaqueta en su propio .cbz dentro de la carpeta de serie.
-    """
     print(_c("90", "\n  Obteniendo metadata de la serie..."), end="", flush=True)
     series_meta = scraper.get_series_metadata(session, url)
     series_name = series_meta.get("Series") or series_meta.get("Title", "")
@@ -122,9 +118,9 @@ def _download_series(
     total  = len(chapters)
 
     for i, chapter in enumerate(chapters, 1):
-        chapter_url = scraper._BASE + chapter["url"]
-        chapter_cid = scraper.extract_id(chapter_url)
-        dest_dir    = FileManager.prepare_dir(output_path, chapter_cid)
+        chapter_url  = scraper._BASE + chapter["url"]
+        chapter_cid  = scraper.extract_id(chapter_url)
+        dest_dir     = FileManager.prepare_dir(output_path, chapter_cid)
         chapter_meta = scraper.build_chapter_metadata(series_meta, chapter)
 
         _print_download_header(i, total, chapter_meta, chapter_cid)
@@ -238,6 +234,48 @@ def process_download(
     return success
 
 
+# ── Lógica de lote con detección de modo ──────────────────────────────────────
+
+def _run_batch_auto(
+    urls: list[str],
+    output_path: str,
+    conv_format,
+    cookies,
+):
+    """
+    Decide automáticamente si usar modo normal o modo profundo
+    según el número de URLs y el umbral configurado.
+    """
+    from utils.BatchManager import (
+        run_batch, run_deep_batch,
+        DELAY_BETWEEN_DOWNLOADS,
+    )
+    from utils.config import load_config
+
+    cfg       = load_config()
+    threshold = cfg.get("deep_mode_threshold", 10)
+    total     = len(urls)
+
+    if total > threshold:
+        # ── Modo Profundo ─────────────────────────────────────────────────────
+        print(_c("93;1", f"\n  [!] {total} URLs detectadas — activando Modo Profundo"))
+
+        def _fn(url, out, fmt, cook):
+            return process_download(url, out, fmt, cook, 1, 1)
+
+        run_deep_batch(urls, _fn, output_path, conv_format, cookies)
+    else:
+        # ── Modo Normal ───────────────────────────────────────────────────────
+        total_n = len(urls)
+
+        def _fn(url, out, fmt, cook):
+            idx = urls.index(url) + 1
+            return process_download(url, out, fmt, cook, idx, total_n)
+
+        run_batch(urls, _fn, output_path, conv_format, cookies,
+                  delay=DELAY_BETWEEN_DOWNLOADS)
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
@@ -258,21 +296,14 @@ def main():
         return
 
     if args.batch:
-        from utils.BatchManager import ensure_batch_file, load_urls, run_batch
+        from utils.BatchManager import ensure_batch_file, load_urls
         if not ensure_batch_file():
             return
         urls = load_urls()
         if not urls:
             print(_c("93;1", "[!] lista.txt no contiene URLs válidas."))
             return
-
-        total = len(urls)
-
-        def _fn(url, out, fmt, cook):
-            idx = urls.index(url) + 1
-            return process_download(url, out, fmt, cook, idx, total)
-
-        run_batch(urls, _fn, output, args.format, args.cookies)
+        _run_batch_auto(urls, output, args.format, args.cookies)
         return
 
     # ── Modo interactivo ─────────────────────────────────────────────────────
@@ -285,7 +316,8 @@ def main():
         print("  [1] Descargar manga")
         print("  [2] Descarga en lote  (.txt)")
         print("  [3] Ver historial")
-        print("  [4] Salir")
+        print("  [4] Configuración")
+        print("  [5] Salir")
 
         op = _ask(_c("93;1", "\n  Opcion > "))
 
@@ -305,7 +337,7 @@ def main():
             _cls()
             ui_banner()
             print(_c("97;1", "  DESCARGA EN LOTE\n"))
-            from utils.BatchManager import BATCH_FILE, ensure_batch_file, load_urls, run_batch
+            from utils.BatchManager import BATCH_FILE, ensure_batch_file, load_urls
             print(_c("90", f"  Archivo de lista: {BATCH_FILE}\n"))
             if not ensure_batch_file():
                 _pause()
@@ -317,16 +349,14 @@ def main():
                 _pause()
                 continue
 
+            cfg       = load_config()
+            threshold = cfg.get("deep_mode_threshold", 10)
             print(_c("92;1", f"  {len(urls)} URL(s) encontradas."))
+            if len(urls) > threshold:
+                print(_c("93;1", f"  → Se activará Modo Profundo (>{threshold} URLs)"))
             output   = _ask_output_path()
             conv_fmt = _ask_conv_format()
-            total    = len(urls)
-
-            def _fn(url, out, fmt, cook):
-                idx = urls.index(url) + 1
-                return process_download(url, out, fmt, cook, idx, total)
-
-            run_batch(urls, _fn, output, conv_fmt, cookies=None)
+            _run_batch_auto(urls, output, conv_fmt, cookies=None)
             _pause()
 
         elif op == "3":
@@ -342,7 +372,97 @@ def main():
             _pause()
 
         elif op == "4":
+            _show_config_menu()
+
+        elif op == "5":
             break
+
+
+# ── Menú de configuración ─────────────────────────────────────────────────────
+
+def _show_config_menu():
+    from utils.config import load_config, save_config, list_user_agents
+
+    _cls()
+    ui_banner()
+    cfg = load_config()
+
+    print(_c("97;1", "  CONFIGURACIÓN\n"))
+
+    threshold   = cfg.get("deep_mode_threshold", 10)
+    batch_size  = cfg.get("batch_size", 25)
+    dl_delay    = cfg.get("delay_between_downloads", [5, 9])
+    lot_delay   = cfg.get("delay_between_batches", [480, 900])
+    vpn_every   = cfg.get("vpn_remind_every", [4, 7])
+    cf_wait     = cfg.get("cf_wait_seconds", [7200, 14400])
+    ua_current  = cfg.get("user_agent", None) or "(rotación automática)"
+    ua_rotate   = cfg.get("ua_rotate_every_batches", 3)
+
+    print(_c("97", f"  [1] Umbral modo profundo     : {threshold} URLs"))
+    print(_c("97", f"  [2] Tamaño de lote           : {batch_size} URLs"))
+    print(_c("97", f"  [3] Delay entre descargas    : {dl_delay[0]}-{dl_delay[1]}s"))
+    print(_c("97", f"  [4] Delay entre lotes        : {lot_delay[0]//60}-{lot_delay[1]//60} min"))
+    print(_c("97", f"  [5] Aviso VPN cada N lotes   : {vpn_every[0]}-{vpn_every[1]}"))
+    print(_c("97", f"  [6] Espera Cloudflare        : {cf_wait[0]//3600}-{cf_wait[1]//3600}h"))
+    print(_c("97", f"  [7] User-Agent actual        : {ua_current[:60]}"))
+    print(_c("97", f"  [8] Rotar UA cada N lotes    : {ua_rotate} (0=desactivado)"))
+    print(_c("97",  "  [9] Volver"))
+
+    op = _ask(_c("93;1", "\n  Opción > "))
+
+    if op == "1":
+        val = _ask(f"  Nuevo umbral [{threshold}] > ")
+        if val.isdigit():
+            save_config({"deep_mode_threshold": int(val)})
+    elif op == "2":
+        val = _ask(f"  Nuevo tamaño de lote [{batch_size}] > ")
+        if val.isdigit():
+            save_config({"batch_size": int(val)})
+    elif op == "3":
+        mn = _ask(f"  Delay mínimo [{dl_delay[0]}s] > ")
+        mx = _ask(f"  Delay máximo [{dl_delay[1]}s] > ")
+        if mn.isdigit() and mx.isdigit():
+            save_config({"delay_between_downloads": [int(mn), int(mx)]})
+    elif op == "4":
+        mn = _ask(f"  Delay mínimo en minutos [{lot_delay[0]//60}] > ")
+        mx = _ask(f"  Delay máximo en minutos [{lot_delay[1]//60}] > ")
+        if mn.isdigit() and mx.isdigit():
+            save_config({"delay_between_batches": [int(mn)*60, int(mx)*60]})
+    elif op == "5":
+        mn = _ask(f"  Cada mínimo [{vpn_every[0]}] lotes > ")
+        mx = _ask(f"  Cada máximo [{vpn_every[1]}] lotes > ")
+        if mn.isdigit() and mx.isdigit():
+            save_config({"vpn_remind_every": [int(mn), int(mx)]})
+    elif op == "6":
+        mn = _ask(f"  Espera mínima en horas [{cf_wait[0]//3600}] > ")
+        mx = _ask(f"  Espera máxima en horas [{cf_wait[1]//3600}] > ")
+        if mn.isdigit() and mx.isdigit():
+            save_config({"cf_wait_seconds": [int(mn)*3600, int(mx)*3600]})
+    elif op == "7":
+        uas = list_user_agents()
+        print(_c("97;1", "\n  User-Agents disponibles:"))
+        print(_c("90",   "  [0] Rotación automática (recomendado)"))
+        for i, ua in enumerate(uas, 1):
+            print(_c("90", f"  [{i}] {ua[:80]}"))
+        custom_lbl = len(uas) + 1
+        print(_c("90",   f"  [{custom_lbl}] Personalizado"))
+        sel = _ask(_c("93;1", "  Opción > "))
+        if sel == "0":
+            save_config({"user_agent": None})
+        elif sel.isdigit() and 1 <= int(sel) <= len(uas):
+            save_config({"user_agent": uas[int(sel) - 1]})
+        elif sel == str(custom_lbl):
+            custom = _ask("  Introduce tu User-Agent > ")
+            if custom:
+                save_config({"user_agent": custom})
+    elif op == "8":
+        val = _ask(f"  Rotar cada N lotes [{ua_rotate}] (0=desactivado) > ")
+        if val.isdigit():
+            save_config({"ua_rotate_every_batches": int(val)})
+
+    if op != "9":
+        print(_c("92", "\n  ✓ Configuración guardada."))
+        _pause()
 
 
 if __name__ == "__main__":
