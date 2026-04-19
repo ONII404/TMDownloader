@@ -1,6 +1,6 @@
 # TMD — Manga Downloader
 
-Descargador modular de manga con soporte para múltiples sitios, empaquetado en `.cbz` con metadatos `ComicInfo.xml`. Diseñado para funcionar en **Android (Termux)**, **Linux** y **Windows**.
+Descargador de manga con soporte para múltiples sitios, empaquetado en `.cbz` con metadatos `ComicInfo.xml`. Diseñado para funcionar en **Android (Termux)**, **Linux** y **Windows**.
 
 ---
 
@@ -9,13 +9,9 @@ Descargador modular de manga con soporte para múltiples sitios, empaquetado en 
 - Descarga individual o en lote desde un archivo `lista.txt`
 - Empaqueta las imágenes en `.cbz` compatible con lectores como Mihon, Komga o Kavita
 - Genera `ComicInfo.xml` automáticamente con metadata del manga (título, autor, géneros, tags, idioma, año, etc.)
-- Organiza la salida en carpetas por serie, con soporte para series multi-capítulo
+- Organiza la salida en carpetas por serie.
 - Conversión opcional de imágenes a **JPG** o **AVIF**
-- Barra de progreso visual durante la descarga
-- Pausa automática entre descargas en modo lote (evita baneos)
-- Detecta la plataforma y sugiere la ruta de salida correcta
 - Historial de descargas
-- Arquitectura modular: añadir soporte para nuevos sitios es sencillo
 
 ---
 
@@ -185,10 +181,12 @@ tmd-downloader/
 
 ## Sitios soportados
 
-| Sitio               | Scraper                 | Metadata extraída                              |
-|---------------------|-------------------------|------------------------------------------------|
-| `tmohentai.com`     | `TMOHentaiScraper`      |                                                |
-| `lectorhentai.com`  | `LectorHentaiScraper`   | Título, autor, géneros, tags, idioma, año      |
+| Sitio               | Scraper                 |
+|---------------------|-------------------------|
+| `tmohentai.com`     | `TMOHentaiScraper`      |
+| `lectorhentai.com`  | `LectorHentaiScraper`   |
+| `onfmangas.com`     | `ONFMangasScraper`      |
+
 
 ---
 
