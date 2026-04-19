@@ -33,15 +33,41 @@ termux-setup-storage
 
 3.- Instalamos TMDownloader
 ```bash
-git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDownloader && echo "alias tmd='cd /storage/emulated/0/TMDownloader && python3 main.py'" >> ~/.bashrc && source ~/.bashrc && echo -e "\n✅ Alias tmd creado y activado correctamente. \nAhora prueba escribiendo: tmd"
+git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDownloader && echo "alias tmd='cd /storage/emulated/0/TMDownloader && python3 main.py'" >> ~/.bashrc && source ~/.bashrc && echo -e "\n✅ Instalado. Ahora puedes usar: tmd"
 ```
 
-### Linux / Windows
+### Windows
 
-```bash
-git clone https://github.com/ONII404/TMDownloader.git
-cd TMDownloader
-python main.py
+1.- Requisitos previos
+
+- **Python** 3**: Descárgalo de [python.org](https://www.python.org/). **_Importante_**: _Marca la casilla "Add Python to PATH" durante la instalación_.
+- **Git**: Descárgalo de [git-scm.com](https://git-scm.com/).
+
+2.- Instalación
+
+```powershell
+git clone https://github.com/ONII404/TMDownloader.git $HOME\TMDownloader && cd TMDownloader
+```
+
+3.- Configurar alias 
+> Para usar el comando `tmd` desde cualquier parte, ejecuta esto en PowerShell.
+> De lo contrario tendras que usar `python3 main.py` en la ubicacion donde este TMDownloader.
+
+```powershell
+# 1. Habilitar ejecución de scripts locales (necesario para que el perfil cargue)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+
+# 2. Crear perfil si no existe
+if (!(Test-Path $PROFILE)) { New-Item -Type File -Path $PROFILE -Force }
+
+# 3. Añadir la función solo si no existe ya en el archivo
+$functionCode = "`nfunction tmd { python `$HOME\TMDownloader\main.py `$args }"
+if (!(Select-String -Path $PROFILE -Pattern "function tmd")) {
+    Add-Content $PROFILE $functionCode
+    Write-Host "✅ Alias 'tmd' configurado correctamente." -ForegroundColor Green
+} else {
+    Write-Host "ℹ️ El alias 'tmd' ya estaba configurado." -ForegroundColor Yellow
+}
 ```
 
 > Las dependencias (`requests`, `cloudscraper`) se instalan solas la primera vez. `Pillow` solo es necesario si usas `--format`.
