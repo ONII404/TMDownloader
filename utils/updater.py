@@ -84,12 +84,16 @@ def run_update(yes: bool = False) -> int:
 
     # ── 4. ¿Ya está al día? ───────────────────────────────────────────────────
     commits_behind = _commits_behind()
+
     if commits_behind == 0:
+        # Confirmado con el remoto: estamos al día
         print()
         print(_c("92;1", "  ✓  TMD ya está en la última versión. No hay nada que actualizar."))
         return 0
-
-    if commits_behind > 0:
+    elif commits_behind == -1:
+        # No se pudo comparar — no asumimos nada, dejamos decidir al usuario
+        print(_c("93", "  (no se pudo determinar el número de commits pendientes)"))
+    else:
         print(_c("93",  f"  {commits_behind} commit(s) por detrás del remoto."))
 
     # ── 5. Advertencias de estado local ──────────────────────────────────────
@@ -148,6 +152,11 @@ def _run_git(*args, capture: bool = True) -> tuple[bool, str]:
     """
     Ejecuta un comando git en _ROOT.
     Retorna (éxito: bool, salida/error: str).
+
+    IMPORTANTE: siempre forzamos encoding='utf-8' + errors='replace'.
+    Sin esto, Windows usa el codec del sistema (CP1252 / CP850) y explota
+    al decodificar la salida de 'git show' si el archivo contiene bytes
+    fuera del rango CP1252 (por ejemplo los bloques █ del banner ASCII).
     """
     try:
         result = subprocess.run(
@@ -155,6 +164,8 @@ def _run_git(*args, capture: bool = True) -> tuple[bool, str]:
             cwd=str(_ROOT),
             capture_output=capture,
             text=True,
+            encoding="utf-8",   # ← forzar UTF-8 en todas las plataformas
+            errors="replace",   # ← sustituir bytes inválidos en vez de explotar
             timeout=30,
         )
         out = (result.stdout + result.stderr).strip()
