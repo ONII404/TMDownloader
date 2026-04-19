@@ -33,7 +33,7 @@ from core.ScraperFactory import ScraperFactory
 from utils.FileManager   import FileManager
 from utils.history       import HistoryManager
 from utils.config        import get_output_path, save_config, load_config
-from utils.ui            import ui_banner, _c, _cls, _pause, _ask
+from utils.ui            import ui_banner, _c, _cls, _pause, _ask, __version__
 
 
 # ── Helpers de UI ─────────────────────────────────────────────────────────────
@@ -87,16 +87,9 @@ def _print_download_header(index: int, total: int, meta: dict, cid: str) -> None
     print(_c("96", f"  {sep}"))
 
 
-# ── Descarga multi-capítulo (serie completa) ──────────────────────────────────
+# ── Descarga multi-capítulo ───────────────────────────────────────────────────
 
-def _download_series(
-    scraper,
-    session,
-    engine: DownloadEngine,
-    url: str,
-    output_path: str,
-    conv_format: str | None,
-) -> bool:
+def _download_series(scraper, session, engine, url, output_path, conv_format):
     print(_c("90", "\n  Obteniendo metadata de la serie..."), end="", flush=True)
     series_meta = scraper.get_series_metadata(session, url)
     series_name = series_meta.get("Series") or series_meta.get("Title", "")
@@ -113,9 +106,7 @@ def _download_series(
 
     print(_c("92", f" ✓  ({len(chapters)} capítulos)"))
 
-    ok     = 0
-    failed = []
-    total  = len(chapters)
+    ok, failed, total = 0, [], len(chapters)
 
     for i, chapter in enumerate(chapters, 1):
         chapter_url  = scraper._BASE + chapter["url"]
@@ -136,17 +127,12 @@ def _download_series(
         print(_c("92", f" ✓  ({len(tasks)} imágenes)"))
         print()
 
-        success = engine.download_manga(
-            tasks,
-            title=chapter_meta.get("Title", ""),
-        )
+        success = engine.download_manga(tasks, title=chapter_meta.get("Title", ""))
 
         if success:
             cbz_file = FileManager.compress_and_clean(
-                dest_dir,
-                meta=chapter_meta,
-                conv_format=conv_format,
-                series_name=series_name,
+                dest_dir, meta=chapter_meta,
+                conv_format=conv_format, series_name=series_name,
             )
             print(_c("92;1", f"\n  ✓  Guardado en: {cbz_file}"))
             ok += 1
@@ -161,22 +147,15 @@ def _download_series(
     if failed:
         print(_c("91;1", f"  ✗ Fallidos    : {len(failed)}"))
         for t in failed:
-            print(_c("91",  f"    - {t}"))
+            print(_c("91", f"    - {t}"))
     print(_c("90", f"  {sep}\n"))
-
     return len(failed) == 0
 
 
-# ── process_download (entrada principal) ──────────────────────────────────────
+# ── process_download ──────────────────────────────────────────────────────────
 
-def process_download(
-    url: str,
-    output_path: str,
-    conv_format: str | None,
-    cookies: str | None,
-    batch_index: int = 1,
-    batch_total: int = 1,
-) -> bool:
+def process_download(url, output_path, conv_format, cookies,
+                     batch_index=1, batch_total=1):
     scraper = ScraperFactory.get_scraper(url)
     if not scraper:
         print(_c("91;1", f"\n  [!] No hay soporte para esta URL: {url}"))
@@ -186,14 +165,12 @@ def process_download(
     session = sm.get_session()
     engine  = DownloadEngine(session, max_workers=8)
 
-    # ── Multi-capítulo ────────────────────────────────────────────────────────
     if hasattr(scraper, "is_multi_chapter") and scraper.is_multi_chapter(url):
         success = _download_series(scraper, session, engine, url, output_path, conv_format)
         if success:
             HistoryManager().add(url)
         return success
 
-    # ── Capítulo individual / Oneshot ─────────────────────────────────────────
     cid = scraper.extract_id(url)
 
     print(_c("90", "\n  Obteniendo metadata..."), end="", flush=True)
@@ -220,10 +197,7 @@ def process_download(
 
     if success:
         cbz_file = FileManager.compress_and_clean(
-            dest_dir,
-            meta=meta,
-            conv_format=conv_format,
-            series_name=series_name,
+            dest_dir, meta=meta, conv_format=conv_format, series_name=series_name,
         )
         HistoryManager().add(url)
         print(_c("92;1", f"\n  ✓  Guardado en: {cbz_file}"))
@@ -234,43 +208,25 @@ def process_download(
     return success
 
 
-# ── Lógica de lote con detección de modo ──────────────────────────────────────
+# ── Lote con detección automática de modo ─────────────────────────────────────
 
-def _run_batch_auto(
-    urls: list[str],
-    output_path: str,
-    conv_format,
-    cookies,
-):
-    """
-    Decide automáticamente si usar modo normal o modo profundo
-    según el número de URLs y el umbral configurado.
-    """
-    from utils.BatchManager import (
-        run_batch, run_deep_batch,
-        DELAY_BETWEEN_DOWNLOADS,
-    )
-    from utils.config import load_config
-
+def _run_batch_auto(urls, output_path, conv_format, cookies):
+    from utils.BatchManager import run_batch, run_deep_batch, DELAY_BETWEEN_DOWNLOADS
     cfg       = load_config()
     threshold = cfg.get("deep_mode_threshold", 10)
-    total     = len(urls)
 
-    if total > threshold:
-        # ── Modo Profundo ─────────────────────────────────────────────────────
-        print(_c("93;1", f"\n  [!] {total} URLs detectadas — activando Modo Profundo"))
+    if len(urls) > threshold:
+        print(_c("93;1", f"\n  [!] {len(urls)} URLs detectadas — activando Modo Profundo"))
 
         def _fn(url, out, fmt, cook):
-            return process_download(url, out, fmt, cook, 1, 1)
+            return process_download(url, out, fmt, cook)
 
         run_deep_batch(urls, _fn, output_path, conv_format, cookies)
     else:
-        # ── Modo Normal ───────────────────────────────────────────────────────
-        total_n = len(urls)
+        total = len(urls)
 
         def _fn(url, out, fmt, cook):
-            idx = urls.index(url) + 1
-            return process_download(url, out, fmt, cook, idx, total_n)
+            return process_download(url, out, fmt, cook, urls.index(url) + 1, total)
 
         run_batch(urls, _fn, output_path, conv_format, cookies,
                   delay=DELAY_BETWEEN_DOWNLOADS)
@@ -279,15 +235,29 @@ def _run_batch_auto(
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="TMD Manga Downloader")
-    parser.add_argument("url",       nargs="?",              help="URL de un manga o capítulo")
-    parser.add_argument("--batch",   "-b", action="store_true",
+    parser = argparse.ArgumentParser(
+        description=f"TMD Manga Downloader v{__version__}",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("url",       nargs="?",  help="URL de un manga o capítulo")
+    parser.add_argument("--batch",   "-b",        action="store_true",
                         help="Modo lote (lee lista.txt)")
-    parser.add_argument("--output",  "-o",                   help="Ruta de salida")
-    parser.add_argument("--cookies", "-c",                   help="Archivo de cookies")
-    parser.add_argument("--format",  "-f", choices=["jpg", "avif"],
+    parser.add_argument("--output",  "-o",        help="Ruta de salida")
+    parser.add_argument("--cookies", "-c",        help="Archivo de cookies")
+    parser.add_argument("--format",  "-f",        choices=["jpg", "avif"],
                         help="Convertir imágenes a este formato")
+    parser.add_argument("--update",  "-u",        action="store_true",
+                        help="Actualizar TMD desde el repositorio git")
+    parser.add_argument("--yes",     "-y",        action="store_true",
+                        help="Confirmar actualización sin preguntar (usar con --update)")
+    parser.add_argument("--version", "-V",        action="version",
+                        version=f"TMD v{__version__}")
     args = parser.parse_args()
+
+    # ── --update ──────────────────────────────────────────────────────────────
+    if args.update:
+        from utils.updater import run_update
+        sys.exit(run_update(yes=args.yes))
 
     output = args.output or get_output_path()
 
@@ -317,7 +287,8 @@ def main():
         print("  [2] Descarga en lote  (.txt)")
         print("  [3] Ver historial")
         print("  [4] Configuración")
-        print("  [5] Salir")
+        print("  [5] Buscar actualizaciones")
+        print("  [6] Salir")
 
         op = _ask(_c("93;1", "\n  Opcion > "))
 
@@ -375,6 +346,13 @@ def main():
             _show_config_menu()
 
         elif op == "5":
+            _cls()
+            ui_banner()
+            from utils.updater import run_update
+            run_update(yes=False)
+            _pause()
+
+        elif op == "6":
             break
 
 
@@ -389,14 +367,14 @@ def _show_config_menu():
 
     print(_c("97;1", "  CONFIGURACIÓN\n"))
 
-    threshold   = cfg.get("deep_mode_threshold", 10)
-    batch_size  = cfg.get("batch_size", 25)
-    dl_delay    = cfg.get("delay_between_downloads", [5, 9])
-    lot_delay   = cfg.get("delay_between_batches", [480, 900])
-    vpn_every   = cfg.get("vpn_remind_every", [4, 7])
-    cf_wait     = cfg.get("cf_wait_seconds", [7200, 14400])
-    ua_current  = cfg.get("user_agent", None) or "(rotación automática)"
-    ua_rotate   = cfg.get("ua_rotate_every_batches", 3)
+    threshold  = cfg.get("deep_mode_threshold", 10)
+    batch_size = cfg.get("batch_size", 25)
+    dl_delay   = cfg.get("delay_between_downloads", [5, 9])
+    lot_delay  = cfg.get("delay_between_batches", [480, 900])
+    vpn_every  = cfg.get("vpn_remind_every", [4, 7])
+    cf_wait    = cfg.get("cf_wait_seconds", [7200, 14400])
+    ua_current = cfg.get("user_agent", None) or "(rotación automática)"
+    ua_rotate  = cfg.get("ua_rotate_every_batches", 3)
 
     print(_c("97", f"  [1] Umbral modo profundo     : {threshold} URLs"))
     print(_c("97", f"  [2] Tamaño de lote           : {batch_size} URLs"))
