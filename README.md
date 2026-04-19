@@ -40,7 +40,7 @@ git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDown
 
 1.- Requisitos previos
 
-- **Python** 3**: Descárgalo de [python.org](https://www.python.org/). **_Importante_**: _Marca la casilla "Add Python to PATH" durante la instalación_.
+- **Python 3**: Descárgalo de [python.org](https://www.python.org/). **_Importante_**: _Marca la casilla "Add Python to PATH" durante la instalación_.
 - **Git**: Descárgalo de [git-scm.com](https://git-scm.com/).
 
 2.- Instalación
@@ -49,7 +49,7 @@ git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDown
 git clone https://github.com/ONII404/TMDownloader.git $HOME\TMDownloader && cd TMDownloader
 ```
 
-3.- Configurar alias 
+3.- Configurar alias (Recomendado)
 > Para usar el comando `tmd` desde cualquier parte, ejecuta esto en PowerShell.
 > De lo contrario tendras que usar `python3 main.py` en la ubicacion donde este TMDownloader.
 
