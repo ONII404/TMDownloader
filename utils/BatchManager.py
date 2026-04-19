@@ -16,8 +16,7 @@ _TEMPLATE = """\
 #
 # Ejemplos:
 # https://tmohentai.com/contents/69b6fd0b4a6fa
-# https://tmohentai.com/reader/69b6fd0b4a6fa/cascade
-# 69b6fd0b4a6fa
+# https://lectorhentai.com/manga/90184/hamegaki-x-yaritsuma
 """
 
 
