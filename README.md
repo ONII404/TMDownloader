@@ -1,5 +1,9 @@
 # TMD — Manga Downloader
 
+![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)
+![Platform](https://img.shields.io/badge/platform-Android%20|%20Windows-green.svg)
+![License](https://img.shields.io/badge/license-MIT-red.svg)
+
 Descargador de manga con soporte para múltiples sitios, empaquetado en `.cbz` con metadatos `ComicInfo.xml`. Diseñado para funcionar en **Android (Termux)**, **Linux** y **Windows**.
 
 ---
@@ -46,8 +50,9 @@ git clone https://github.com/ONII404/TMDownloader.git $HOME\TMDownloader && cd T
 ```
 
 3.- Configurar alias (Recomendado)
-> Para usar el comando `tmd` desde cualquier parte, ejecuta esto en PowerShell.
-> De lo contrario tendras que usar `python3 main.py` en la ubicacion donde este TMDownloader.
+>    De lo contrario tendras que usar `python3 main.py` en la ubicacion donde este TMDownloader.
+> - *Ejecuta PowerShell como administrador si es la primera vez que configuras scripts*.
+
 
 ```powershell
 # 1. Habilitar ejecución de scripts locales (necesario para que el perfil cargue)
