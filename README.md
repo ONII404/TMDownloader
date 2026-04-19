@@ -33,15 +33,15 @@ termux-setup-storage
 
 3.- Instalamos TMDownloader
 ```bash
-git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDownloader && echo "alias tmd='cd ~/TMDownloader && python3 main.py'" >> ~/.bashrc && source ~/.bashrc && echo "✅ Alias TMD creado y activado correctamente. Ahora prueba escribiendo TMD"
+git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDownloader && echo "alias TMD='cd ~/TMDownloader && python3 main.py'" >> ~/.bashrc && source ~/.bashrc && echo "✅ Alias TMD creado y activado correctamente. Ahora prueba escribiendo TMD"
 ```
 
 ### Linux / Windows
 
 ```bash
-git clone https://github.com/tu-usuario/tmd-downloader
-cd tmd-downloader
-python main.py   # instala dependencias automáticamente en el primer arranque
+git clone https://github.com/ONII404/TMDownloader.git
+cd TMDownloader
+python main.py
 ```
 
 > Las dependencias (`requests`, `cloudscraper`) se instalan solas la primera vez. `Pillow` solo es necesario si usas `--format`.
@@ -52,7 +52,7 @@ python main.py   # instala dependencias automáticamente en el primer arranque
 
 ### Menú interactivo
 
-Usar `tmd` ejecutara el Menú
+Usar `TMD` ejecutara el Menú
 ```
   MENU PRINCIPAL
   [1] Descargar manga
@@ -65,16 +65,16 @@ Usar `tmd` ejecutara el Menú
 
 ```bash
 # Descarga individual
-tmd https://tmohentai.com/contents/69b6fd0b4a6fa
+TMD https://tmohentai.com/contents/69b6fd0b4a6fa
 
 # Con ruta de salida y conversión a JPG
-tmd https://tmohentai.com/contents/69b6fd0b4a6fa -o ~/Manga -f jpg
+TMD https://tmohentai.com/contents/69b6fd0b4a6fa -o ~/Manga -f jpg
 
 # Descarga en lote desde lista.txt
-tmd --batch
+TMD --batch
 
 # Lote con ruta de salida
-tmd --batch -o /storage/emulated/0/Manga
+TMD --batch -o /storage/emulated/0/Manga
 ```
 
 | Argumento   | Corto | Descripción                                   |
