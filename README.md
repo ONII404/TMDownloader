@@ -1,6 +1,6 @@
 # TMD — Manga Downloader
 
-Descargador modular de manga con soporte para múltiples sitios, empaquetado en `.cbz` con metadatos `ComicInfo.xml`. Diseñado para funcionar en **Android (Termux)**, **Linux** y **Windows**.
+Descargador de manga con soporte para múltiples sitios, empaquetado en `.cbz` con metadatos `ComicInfo.xml`. Diseñado para funcionar en **Android (Termux)**, **Linux** y **Windows**.
 
 ---
 
@@ -9,34 +9,64 @@ Descargador modular de manga con soporte para múltiples sitios, empaquetado en 
 - Descarga individual o en lote desde un archivo `lista.txt`
 - Empaqueta las imágenes en `.cbz` compatible con lectores como Mihon, Komga o Kavita
 - Genera `ComicInfo.xml` automáticamente con metadata del manga (título, autor, géneros, tags, idioma, año, etc.)
-- Organiza la salida en carpetas por serie, con soporte para series multi-capítulo
+- Organiza la salida en carpetas por serie.
 - Conversión opcional de imágenes a **JPG** o **AVIF**
-- Barra de progreso visual durante la descarga
-- Pausa automática entre descargas en modo lote (evita baneos)
-- Detecta la plataforma y sugiere la ruta de salida correcta
 - Historial de descargas
-- Arquitectura modular: añadir soporte para nuevos sitios es sencillo
 
 ---
 
 ## Instalación
 
 ### Termux (Android)
-
+1.- Preparamos el entorno
 ```bash
-pkg install python git
-git clone https://github.com/tu-usuario/tmd-downloader
-cd tmd-downloader
-python main.py   # instala dependencias automáticamente en el primer arranque
+pkg update && pkg upgrade -y && pkg install python git -y
+```
+2.- Permitimos de Termux acceda al almacenamiento
+```Bash
+termux-setup-storage
 ```
 
-### Linux / Windows
-
+3.- Instalamos TMDownloader
 ```bash
-git clone https://github.com/tu-usuario/tmd-downloader
-cd tmd-downloader
-python main.py   # instala dependencias automáticamente en el primer arranque
+git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDownloader && echo "alias tmd='cd /storage/emulated/0/TMDownloader && python3 main.py'" >> ~/.bashrc && source ~/.bashrc && echo -e "\n✅ Instalado. Ahora puedes usar: tmd"
 ```
+
+### Windows
+
+1.- Requisitos previos
+
+- **Python 3**: Descárgalo de [python.org](https://www.python.org/). **_Importante_**: _Marca la casilla "Add Python to PATH" durante la instalación_.
+- **Git**: Descárgalo de [git-scm.com](https://git-scm.com/).
+
+2.- Instalación
+
+```powershell
+git clone https://github.com/ONII404/TMDownloader.git $HOME\TMDownloader && cd TMDownloader
+```
+
+3.- Configurar alias (Recomendado)
+> Para usar el comando `tmd` desde cualquier parte, ejecuta esto en PowerShell.
+> De lo contrario tendras que usar `python3 main.py` en la ubicacion donde este TMDownloader.
+
+```powershell
+# 1. Habilitar ejecución de scripts locales (necesario para que el perfil cargue)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+
+# 2. Crear perfil si no existe
+if (!(Test-Path $PROFILE)) { New-Item -Type File -Path $PROFILE -Force }
+
+# 3. Añadir la función solo si no existe ya en el archivo
+$functionCode = "`nfunction tmd { python `$HOME\TMDownloader\main.py `$args }"
+if (!(Select-String -Path $PROFILE -Pattern "function tmd")) {
+    Add-Content $PROFILE $functionCode
+    Write-Host "✅ Alias 'tmd' configurado correctamente." -ForegroundColor Green
+} else {
+    Write-Host "ℹ️ El alias 'tmd' ya estaba configurado." -ForegroundColor Yellow
+}
+```
+
+4.- Reinicia la terminal para poder empezar a usar el comando
 
 > Las dependencias (`requests`, `cloudscraper`) se instalan solas la primera vez. `Pillow` solo es necesario si usas `--format`.
 
@@ -46,10 +76,7 @@ python main.py   # instala dependencias automáticamente en el primer arranque
 
 ### Menú interactivo
 
-```bash
-python main.py
-```
-
+Usar `tmd` ejecutara el Menú
 ```
   MENU PRINCIPAL
   [1] Descargar manga
@@ -62,16 +89,16 @@ python main.py
 
 ```bash
 # Descarga individual
-python main.py https://tmohentai.com/contents/69b6fd0b4a6fa
+tmd https://tmohentai.com/contents/69b6fd0b4a6fa
 
 # Con ruta de salida y conversión a JPG
-python main.py https://tmohentai.com/contents/69b6fd0b4a6fa -o ~/Manga -f jpg
+tmd https://tmohentai.com/contents/69b6fd0b4a6fa -o ~/Manga -f jpg
 
 # Descarga en lote desde lista.txt
-python main.py --batch
+tmd --batch
 
 # Lote con ruta de salida
-python main.py --batch -o /storage/emulated/0/Manga
+tmd --batch -o /storage/emulated/0/Manga
 ```
 
 | Argumento   | Corto | Descripción                                   |
@@ -154,10 +181,12 @@ tmd-downloader/
 
 ## Sitios soportados
 
-| Sitio               | Scraper                 | Metadata extraída                              |
-|---------------------|-------------------------|------------------------------------------------|
-| `tmohentai.com`     | `TMOHentaiScraper`      |                                                |
-| `lectorhentai.com`  | `LectorHentaiScraper`   | Título, autor, géneros, tags, idioma, año      |
+| Sitio               | Scraper                 |
+|---------------------|-------------------------|
+| `tmohentai.com`     | `TMOHentaiScraper`      |
+| `lectorhentai.com`  | `LectorHentaiScraper`   |
+| `onfmangas.com`     | `ONFMangasScraper`      |
+
 
 ---
 
