@@ -185,7 +185,7 @@ tmd-downloader/
 |---------------------|-------------------------|
 | `tmohentai.com`     | `TMOHentaiScraper`      |
 | `lectorhentai.com`  | `LectorHentaiScraper`   |
-| `onfmangas.com`     | `ONFMangasScraper`      |
+| ~~`onfmangas.com`~~ | ~~`ONFMangasScraper`~~  | # Roto
 
 
 ---
