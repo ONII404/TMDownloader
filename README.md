@@ -2,7 +2,6 @@
 
 ![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Android%20|%20Windows-green.svg)
-![License](https://img.shields.io/badge/license-MIT-red.svg)
 
 Descargador de manga con soporte para múltiples sitios, empaquetado en `.cbz` con metadatos `ComicInfo.xml`. Diseñado para funcionar en **Android (Termux)**, **Linux** y **Windows**.
 
@@ -10,23 +9,25 @@ Descargador de manga con soporte para múltiples sitios, empaquetado en `.cbz` c
 
 ## 📋 Tabla de Contenidos
 
-* [Características](#características)
-* [Instalación](#instalación)
-    * [Termux (Android)](#termux-android)
-    * [Windows](#windows)
-* [Uso](#uso)
-    * [Menú interactivo](#menú-interactivo)
-    * [Línea de comandos](#línea-de-comandos)
-* [Descarga en lote](#descarga-en-lote)
-* [Estructura de salida](#estructura-de-salida)
-* [Estructura del proyecto](#estructura-del-proyecto)
-* [Sitios soportados](#sitios-soportados)
-* [Añadir soporte para un nuevo sitio](#añadir-soporte-para-un-nuevo-sitio)
-    * [1. Crear el scraper](#1-crear-el-scraper)
-    * [2. Registrar el scraper](#2-registrar-el-scraper)
-    * [Referencia rápida](#referencia-rápida-de-la-interfaz)
-* [Dependencias](#dependencias)
-* [Notas](#notas)
+- [TMD — Manga Downloader](#tmd--manga-downloader)
+  - [📋 Tabla de Contenidos](#-tabla-de-contenidos)
+  - [Características](#características)
+  - [Instalación](#instalación)
+    - [Termux (Android)](#termux-android)
+    - [Windows](#windows)
+  - [Uso](#uso)
+    - [Menú interactivo](#menú-interactivo)
+    - [Línea de comandos](#línea-de-comandos)
+  - [Descarga en lote](#descarga-en-lote)
+  - [Estructura de salida](#estructura-de-salida)
+  - [Estructura del proyecto](#estructura-del-proyecto)
+  - [Sitios soportados](#sitios-soportados)
+  - [Añadir soporte para un nuevo sitio](#añadir-soporte-para-un-nuevo-sitio)
+    - [1. Crear el scraper](#1-crear-el-scraper)
+    - [2. Registrar el scraper](#2-registrar-el-scraper)
+    - [Referencia rápida de la interfaz](#referencia-rápida-de-la-interfaz)
+  - [Dependencias](#dependencias)
+  - [Notas](#notas)
 
 ---
 
