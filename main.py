@@ -4,7 +4,6 @@ import subprocess
 
 # ── Auto-instalación de dependencias ────────────────────────────────────────
 _REQUIRED = ["requests", "cloudscraper"]
-_OPTIONAL = {"Pillow": "Pillow"}   # nombre pip : nombre import
 
 def _ensure_deps():
     missing = []
@@ -25,17 +24,19 @@ def _ensure_deps():
 
 _ensure_deps()
 
-# ── Imports normales (después de garantizar dependencias) ───────────────────
+# ── Imports normales ──────────────────────────────────────────────────────────
 import argparse
 
-from core.Session import SessionManager
+from core.Session        import SessionManager
 from core.DownloadEngine import DownloadEngine
 from core.ScraperFactory import ScraperFactory
-from utils.FileManager import FileManager
-from utils.history import HistoryManager
-from utils.config import get_output_path, save_config
-from utils.ui import ui_banner, _c, _cls, _pause, _ask
+from utils.FileManager   import FileManager
+from utils.history       import HistoryManager
+from utils.config        import get_output_path, save_config
+from utils.ui            import ui_banner, _c, _cls, _pause, _ask
 
+
+# ── Helpers de UI ─────────────────────────────────────────────────────────────
 
 def _ask_output_path() -> str:
     last = get_output_path()
@@ -56,68 +57,206 @@ def _ask_conv_format() -> str | None:
     return {"2": "jpg", "3": "avif"}.get(op, None)
 
 
-def process_download(url: str, output_path: str,
-                     conv_format: str | None, cookies: str | None) -> bool:
+def _print_download_header(index: int, total: int, meta: dict, cid: str) -> None:
+    sep     = "═" * 50
+    title   = meta.get("Title",  cid)
+    series  = meta.get("Series", "")
+    source  = meta.get("Source", "")
+    chapter = meta.get("Number", "")
+
+    print()
+    print(_c("96", f"  {sep}"))
+
+    if total > 1:
+        print(_c("97;1", f"  Descarga  [{index} / {total}]"))
+    else:
+        print(_c("97;1",  "  Descarga"))
+
+    if series and series != title:
+        print(_c("97",  "  Serie   : ") + _c("93;1", series))
+        print(_c("97",  "  Capítulo: ") + _c("93;1", title))
+    else:
+        print(_c("97",  "  Título  : ") + _c("93;1", title))
+
+    if chapter and chapter != "1":
+        print(_c("97",  "  Número  : ") + _c("90",   chapter))
+
+    if source:
+        print(_c("97",  "  Fuente  : ") + _c("90",   source))
+
+    print(_c("96", f"  {sep}"))
+
+
+# ── Descarga multi-capítulo (serie completa) ──────────────────────────────────
+
+def _download_series(
+    scraper,
+    session,
+    engine: DownloadEngine,
+    url: str,
+    output_path: str,
+    conv_format: str | None,
+) -> bool:
+    """
+    Descarga todos los capítulos de una serie desde la URL de manga.
+    Cada capítulo se empaqueta en su propio .cbz dentro de la carpeta de serie.
+    """
+    print(_c("90", "\n  Obteniendo metadata de la serie..."), end="", flush=True)
+    series_meta = scraper.get_series_metadata(session, url)
+    series_name = series_meta.get("Series") or series_meta.get("Title", "")
+    print(_c("92", " ✓"))
+    print(_c("97", "  Serie   : ") + _c("93;1", series_name))
+
+    print(_c("90", "  Obteniendo lista de capítulos..."), end="", flush=True)
+    chapters = scraper.get_chapters(session, url)
+
+    if not chapters:
+        print(_c("91;1", " ✗"))
+        print(_c("91;1", "  [!] No se encontraron capítulos."))
+        return False
+
+    print(_c("92", f" ✓  ({len(chapters)} capítulos)"))
+
+    ok     = 0
+    failed = []
+    total  = len(chapters)
+
+    for i, chapter in enumerate(chapters, 1):
+        chapter_url = scraper._BASE + chapter["url"]
+        chapter_cid = scraper.extract_id(chapter_url)
+        dest_dir    = FileManager.prepare_dir(output_path, chapter_cid)
+        chapter_meta = scraper.build_chapter_metadata(series_meta, chapter)
+
+        _print_download_header(i, total, chapter_meta, chapter_cid)
+
+        print(_c("90", "  Buscando imágenes..."), end="", flush=True)
+        tasks = scraper.get_chapter_image_tasks(session, chapter, dest_dir, url)
+
+        if not tasks:
+            print(_c("91;1", " ✗  (sin imágenes)"))
+            failed.append(chapter.get("titulo", str(i)))
+            continue
+
+        print(_c("92", f" ✓  ({len(tasks)} imágenes)"))
+        print()
+
+        success = engine.download_manga(
+            tasks,
+            title=chapter_meta.get("Title", ""),
+        )
+
+        if success:
+            cbz_file = FileManager.compress_and_clean(
+                dest_dir,
+                meta=chapter_meta,
+                conv_format=conv_format,
+                series_name=series_name,
+            )
+            print(_c("92;1", f"\n  ✓  Guardado en: {cbz_file}"))
+            ok += 1
+        else:
+            print(_c("93;1", "\n  ⚠  Descarga incompleta."))
+            failed.append(chapter.get("titulo", str(i)))
+
+    sep = "─" * 50
+    print(_c("90",   f"\n  {sep}"))
+    print(_c("97;1",  "  RESUMEN DE SERIE"))
+    print(_c("92;1",  f"  ✓ Completados : {ok} / {total}"))
+    if failed:
+        print(_c("91;1", f"  ✗ Fallidos    : {len(failed)}"))
+        for t in failed:
+            print(_c("91",  f"    - {t}"))
+    print(_c("90", f"  {sep}\n"))
+
+    return len(failed) == 0
+
+
+# ── process_download (entrada principal) ──────────────────────────────────────
+
+def process_download(
+    url: str,
+    output_path: str,
+    conv_format: str | None,
+    cookies: str | None,
+    batch_index: int = 1,
+    batch_total: int = 1,
+) -> bool:
     scraper = ScraperFactory.get_scraper(url)
     if not scraper:
-        print(_c("91;1", f"\n[!] No hay soporte para esta URL: {url}"))
+        print(_c("91;1", f"\n  [!] No hay soporte para esta URL: {url}"))
         return False
 
     sm      = SessionManager(cookies_file=cookies)
-    engine  = DownloadEngine(sm.get_session(), max_workers=8)
     session = sm.get_session()
+    engine  = DownloadEngine(session, max_workers=8)
 
-    cid      = scraper.extract_id(url)
-    dest_dir = FileManager.prepare_dir(output_path, cid)
+    # ── Multi-capítulo ────────────────────────────────────────────────────────
+    if hasattr(scraper, "is_multi_chapter") and scraper.is_multi_chapter(url):
+        success = _download_series(scraper, session, engine, url, output_path, conv_format)
+        if success:
+            HistoryManager().add(url)
+        return success
 
-    print(_c("96;1", f"\n[*] Iniciando descarga: {cid}"))
-    print(_c("90",   f"  Carpeta temporal : {dest_dir}"))
+    # ── Capítulo individual / Oneshot ─────────────────────────────────────────
+    cid = scraper.extract_id(url)
 
-    print(_c("93;1", "  Obteniendo metadata..."))
+    print(_c("90", "\n  Obteniendo metadata..."), end="", flush=True)
     meta = scraper.get_metadata(session, cid)
-    print(_c("90",   f"  Título           : {meta.get('Title', '?')}"))
+    print(_c("92", " ✓"))
 
-    print(_c("93;1", "  Buscando imágenes..."))
+    series_name = meta.get("Series") or None
+    dest_dir    = FileManager.prepare_dir(output_path, cid)
+
+    _print_download_header(batch_index, batch_total, meta, cid)
+
+    print(_c("90", "  Buscando imágenes..."), end="", flush=True)
     tasks = scraper.get_image_tasks(session, cid, dest_dir)
 
     if not tasks:
-        print(_c("91;1", "[!] No se encontraron imágenes o el sitio bloqueó la petición."))
+        print(_c("91;1", " ✗"))
+        print(_c("91;1", "  [!] No se encontraron imágenes o el sitio bloqueó la petición."))
         return False
 
-    print(_c("97;1", f"  {len(tasks)} imágenes encontradas. Descargando en paralelo...\n"))
+    print(_c("92", f" ✓  ({len(tasks)} imágenes)"))
+    print()
 
-    success = engine.download_manga(tasks)
+    success = engine.download_manga(tasks, title=meta.get("Title", cid))
 
     if success:
-        cbz_file = FileManager.compress_and_clean(dest_dir, meta=meta, conv_format=conv_format)
+        cbz_file = FileManager.compress_and_clean(
+            dest_dir,
+            meta=meta,
+            conv_format=conv_format,
+            series_name=series_name,
+        )
         HistoryManager().add(url)
-        print(_c("92;1", f"\n[OK] ¡Éxito! Archivo guardado en: {cbz_file}"))
+        print(_c("92;1", f"\n  ✓  Guardado en: {cbz_file}"))
     else:
-        print(_c("93;1", "\n[!] Descarga incompleta. Se conservaron los archivos temporales."))
-        print(_c("90",   f"    Revisa los archivos en: {dest_dir}"))
+        print(_c("93;1", "\n  ⚠  Descarga incompleta — archivos en:"))
+        print(_c("90",   f"     {dest_dir}"))
 
     return success
 
 
+# ── Entry point ───────────────────────────────────────────────────────────────
+
 def main():
     parser = argparse.ArgumentParser(description="TMD Manga Downloader")
-    parser.add_argument("url",       nargs="?",         help="URL de un manga")
-    parser.add_argument("--batch",   "-b",              help="Archivo .txt con lista de URLs",
-                        action="store_true")
-    parser.add_argument("--output",  "-o",              help="Ruta de salida")
-    parser.add_argument("--cookies", "-c",              help="Archivo de cookies")
+    parser.add_argument("url",       nargs="?",              help="URL de un manga o capítulo")
+    parser.add_argument("--batch",   "-b", action="store_true",
+                        help="Modo lote (lee lista.txt)")
+    parser.add_argument("--output",  "-o",                   help="Ruta de salida")
+    parser.add_argument("--cookies", "-c",                   help="Archivo de cookies")
     parser.add_argument("--format",  "-f", choices=["jpg", "avif"],
                         help="Convertir imágenes a este formato")
     args = parser.parse_args()
 
     output = args.output or get_output_path()
 
-    # ── Modo no-interactivo: URL única ───────────────────────────────────────
     if args.url:
         process_download(args.url, output, args.format, args.cookies)
         return
 
-    # ── Modo no-interactivo: lote desde CLI ──────────────────────────────────
     if args.batch:
         from utils.BatchManager import ensure_batch_file, load_urls, run_batch
         if not ensure_batch_file():
@@ -126,7 +265,14 @@ def main():
         if not urls:
             print(_c("93;1", "[!] lista.txt no contiene URLs válidas."))
             return
-        run_batch(urls, process_download, output, args.format, args.cookies)
+
+        total = len(urls)
+
+        def _fn(url, out, fmt, cook):
+            idx = urls.index(url) + 1
+            return process_download(url, out, fmt, cook, idx, total)
+
+        run_batch(urls, _fn, output, args.format, args.cookies)
         return
 
     # ── Modo interactivo ─────────────────────────────────────────────────────
@@ -167,13 +313,20 @@ def main():
             urls = load_urls()
             if not urls:
                 print(_c("93;1", "  [!] lista.txt no contiene URLs válidas."))
-                print(_c("90",   f"      Edita el archivo y añade una URL por línea."))
+                print(_c("90",   "      Edita el archivo y añade una URL por línea."))
                 _pause()
                 continue
+
             print(_c("92;1", f"  {len(urls)} URL(s) encontradas."))
             output   = _ask_output_path()
             conv_fmt = _ask_conv_format()
-            run_batch(urls, process_download, output, conv_fmt, cookies=None)
+            total    = len(urls)
+
+            def _fn(url, out, fmt, cook):
+                idx = urls.index(url) + 1
+                return process_download(url, out, fmt, cook, idx, total)
+
+            run_batch(urls, _fn, output, conv_fmt, cookies=None)
             _pause()
 
         elif op == "3":
