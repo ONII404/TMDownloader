@@ -70,6 +70,8 @@ if (!(Select-String -Path $PROFILE -Pattern "function tmd")) {
 }
 ```
 
+4.- Reinicia la terminal para poder empezar a usar el comando
+
 > Las dependencias (`requests`, `cloudscraper`) se instalan solas la primera vez. `Pillow` solo es necesario si usas `--format`.
 
 ---
