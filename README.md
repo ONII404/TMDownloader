@@ -33,7 +33,7 @@ termux-setup-storage
 
 3.- Instalamos TMDownloader
 ```bash
-git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDownloader && echo "alias TMD='cd ~/TMDownloader && python3 main.py'" >> ~/.bashrc && source ~/.bashrc && echo "✅ Alias TMD creado y activado correctamente. Ahora prueba escribiendo TMD"
+git clone https://github.com/ONII404/TMDownloader.git /storage/emulated/0/TMDownloader && echo "alias TMD='cd /storage/emulated/0/TMDownloader && python3 main.py'" >> ~/.bashrc && source ~/.bashrc && echo "✅ Alias TMD creado y activado correctamente. Ahora prueba escribiendo TMD"
 ```
 
 ### Linux / Windows
