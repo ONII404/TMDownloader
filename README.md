@@ -3,6 +3,7 @@
 ![Version](https://img.shields.io/badge/version-2.0-blue.svg)
 ![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Android%20|%20Linux%20|%20Windows-green.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 Descargador de manga con soporte para múltiples sitios, empaquetado en `.cbz` con metadatos `ComicInfo.xml`. Diseñado para funcionar en **Android (Termux)**, **Linux** y **Windows**.
 
@@ -10,27 +11,33 @@ Descargador de manga con soporte para múltiples sitios, empaquetado en `.cbz` c
 
 ## 📋 Tabla de Contenidos
 
-- [Características](#características)
-- [Instalación](#instalación)
-  - [Termux (Android)](#termux-android)
-  - [Windows](#windows)
-- [Uso](#uso)
-  - [Menú interactivo](#menú-interactivo)
-  - [Línea de comandos](#línea-de-comandos)
-- [Descarga en lote](#descarga-en-lote)
-  - [Modo Normal](#modo-normal)
-  - [Modo Descarga Profunda](#modo-descarga-profunda)
-- [Configuración personalizada](#configuración-personalizada)
-  - [Archivo .tmo_config.json](#archivo-tmo_configjson)
-  - [Referencia de parámetros](#referencia-de-parámetros)
-- [Metadatos externos (TMOH.json)](#metadatos-externos-tmohjson)
-- [Actualizaciones](#actualizaciones)
-- [Estructura de salida](#estructura-de-salida)
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Sitios soportados](#sitios-soportados)
-- [Añadir soporte para un nuevo sitio](#añadir-soporte-para-un-nuevo-sitio)
-- [Dependencias](#dependencias)
-- [Notas](#notas)
+- [TMD — Manga Downloader](#tmd--manga-downloader)
+  - [📋 Tabla de Contenidos](#-tabla-de-contenidos)
+  - [Características](#características)
+  - [Instalación](#instalación)
+    - [Termux (Android)](#termux-android)
+    - [Windows](#windows)
+  - [Uso](#uso)
+    - [Menú interactivo](#menú-interactivo)
+    - [Línea de comandos](#línea-de-comandos)
+  - [Descarga en lote](#descarga-en-lote)
+    - [Modo Normal](#modo-normal)
+    - [Modo Descarga Profunda](#modo-descarga-profunda)
+  - [Configuración personalizada](#configuración-personalizada)
+    - [Archivo .tmo\_config.json](#archivo-tmo_configjson)
+    - [Referencia de parámetros](#referencia-de-parámetros)
+  - [Metadatos externos (TMOH.json)](#metadatos-externos-tmohjson)
+  - [Actualizaciones](#actualizaciones)
+  - [Estructura de salida](#estructura-de-salida)
+  - [Estructura del proyecto](#estructura-del-proyecto)
+  - [Sitios soportados](#sitios-soportados)
+  - [Añadir soporte para un nuevo sitio](#añadir-soporte-para-un-nuevo-sitio)
+    - [1. Crear el scraper](#1-crear-el-scraper)
+    - [2. Registrar el scraper](#2-registrar-el-scraper)
+    - [Referencia rápida de la interfaz](#referencia-rápida-de-la-interfaz)
+  - [Dependencias](#dependencias)
+  - [Notas](#notas)
+  - [Licencia](#licencia)
 
 ---
 
@@ -507,3 +514,7 @@ Las dependencias obligatorias se instalan automáticamente al ejecutar TMD por p
 - Si una descarga falla parcialmente, los archivos temporales se conservan en la carpeta de trabajo para revisión manual.
 - El historial se guarda en `downloads_history.txt`. Si tenías el archivo antiguo `.tmohentai_history.txt`, se migra automáticamente en la primera ejecución.
 - El estado de reanudación (`.tmd_progress.json`) se basa en un hash del archivo `lista.txt`. Si modificas la lista entre sesiones, TMD detectará el cambio y preguntará si empezar de cero.
+
+## Licencia
+
+Distribuido bajo la [Licencia MIT](LICENSE).

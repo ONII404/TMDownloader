@@ -17,6 +17,7 @@ import json
 import requests
 from pathlib import Path
 from scrapers.BaseScraper import BaseScraper
+from scrapers.sites import TMO_BASE, TMO_CDN_HOSTS, TMO_SOURCE_NAME
 
 # Ruta del JSON de metadata externa (raíz del proyecto)
 _TMOH_JSON = Path(__file__).parent.parent / "TMOH.json"
@@ -24,16 +25,11 @@ _TMOH_JSON = Path(__file__).parent.parent / "TMOH.json"
 
 class TMOHentaiScraper(BaseScraper):
 
-    _source_name = "TMOHentai"
-    _BASE        = "https://tmohentai.com"
+    _source_name = TMO_SOURCE_NAME
+    _BASE        = TMO_BASE
 
     def __init__(self):
-        self.cdn_hosts = [
-            "cache1.tmohentai.com",
-            "cache2.tmohentai.com",
-            "cache3.tmohentai.com",
-            "cache4.tmohentai.com",
-        ]
+        self.cdn_hosts = list(TMO_CDN_HOSTS)
         self.extensions = [".webp", ".jpg", ".jpeg", ".png"]
 
         # Índice de metadata del JSON externo: { content_id: meta_dict }
@@ -98,7 +94,8 @@ class TMOHentaiScraper(BaseScraper):
     # ── Obligatorios ────────────────────────────────────────────────────────
 
     def matches(self, url: str) -> bool:
-        return "tmohentai.com" in url or (len(url) == 13 and url.isalnum())
+        domain = TMO_BASE.split("//")[1]  # "tmohentai.com"
+        return domain in url or (len(url) == 13 and url.isalnum())
 
     def extract_id(self, url: str) -> str:
         cid = self._id_from_url(url)
@@ -113,7 +110,7 @@ class TMOHentaiScraper(BaseScraper):
         referer = f"{self._BASE}/reader/{cid}/cascade"
         fails   = 0
 
-        print(f"  Patrón CDN: https://cache1.tmohentai.com/contents/{cid}/000.webp")
+        print(f"  Patrón CDN: https://{self.cdn_hosts[0]}/contents/{cid}/000.webp")
 
         for i in range(1000):
             found = False

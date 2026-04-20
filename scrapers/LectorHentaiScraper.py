@@ -16,12 +16,13 @@ import json
 import requests
 from pathlib import Path
 from scrapers.BaseScraper import BaseScraper
+from scrapers.sites import LECTOR_BASE, LECTOR_CDN_DOMAIN, LECTOR_SOURCE_NAME
 
 
 class LectorHentaiScraper(BaseScraper):
 
-    _source_name = "LectorHentai"
-    _BASE        = "https://lectorhentai.com"
+    _source_name = LECTOR_SOURCE_NAME
+    _BASE        = LECTOR_BASE
 
     # ── Obligatorios ─────────────────────────────────────────────────────────
 
@@ -114,7 +115,7 @@ class LectorHentaiScraper(BaseScraper):
                         # sin importar si el filename es numérico o hash
                         result = [
                             _fix(u) for u in urls
-                            if isinstance(u, str) and "giolandscaping.com" in u
+                            if isinstance(u, str) and LECTOR_CDN_DOMAIN in u
                         ]
                         if result:
                             return result

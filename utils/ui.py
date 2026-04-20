@@ -4,7 +4,7 @@ import sys
 
 # ── Versión central ───────────────────────────────────────────────────────────
 # Cambia SOLO este valor para actualizar la versión en toda la interfaz.
-__version__ = "2.0.1"
+__version__ = "2.0.2"
 
 
 def _c(code: str, text: str) -> str:
