@@ -145,10 +145,10 @@ Ejecutar `tmd` sin argumentos abre el menú:
 
 ```bash
 # Descarga individual
-tmd https://tmohentai.com/contents/69b6fd0b4a6fa
+tmd https://un-sitio/contents/69b6fd0b4a6fa
 
 # Con ruta de salida y conversión a JPG
-tmd https://tmohentai.com/contents/69b6fd0b4a6fa -o ~/Manga -f jpg
+tmd https://un-sitio/contents/69b6fd0b4a6fa -o ~/Manga -f jpg
 
 # Descarga en lote desde lista.txt
 tmd --batch
@@ -185,9 +185,9 @@ Crea o edita `lista.txt` en la raíz del proyecto. Si no existe, se genera autom
 
 ```
 # Una URL por línea. Las líneas con # son comentarios.
-https://tmohentai.com/contents/69b6fd0b4a6fa
+https://un-sitio/contents/69b6fd0b4a6fa
 https://lectorhentai.com/manga/24514/loca-por-ti
-https://tmohentai.com/contents/otro_id_aqui
+https://un-sitio/contents/otro_id_aqui
 ```
 
 ### Modo Normal
@@ -252,7 +252,7 @@ TMD guarda toda su configuración en `.tmo_config.json` en la raíz del proyecto
 
 ## Metadatos externos (TMOH.json)
 
-El scraper de `tmohentai.com` puede enriquecer el `ComicInfo.xml` con datos de un archivo JSON externo llamado `TMOH.json`, colocado en la raíz del proyecto.
+El scraper de `tmoRojo` puede enriquecer el `ComicInfo.xml` con datos de un archivo JSON externo llamado `TMOH.json`, colocado en la raíz del proyecto.
 
 **Formato esperado:**
 
@@ -277,7 +277,7 @@ El scraper de `tmohentai.com` puede enriquecer el `ComicInfo.xml` con datos de u
 TMD extrae el ID del final de la URL en ambos lados y los compara:
 
 ```
-URL descargada : https://tmohentai.com/contents/69b6fd0b4a6fa
+URL descargada : https://un-sitio.com/contents/69b6fd0b4a6fa
 Campo en JSON  : "url": "/contents/69b6fd0b4a6fa"
 ID extraído    : 69b6fd0b4a6fa  ← coincidencia
 ```
@@ -361,7 +361,7 @@ La carpeta de serie se toma del campo `Series` que retorna el scraper en su meta
 TMDownloader/
 │   main.py                  # Punto de entrada y menú interactivo
 │   lista.txt                # Lista de URLs para descarga en lote
-│   TMOH.json                # (opcional) Metadatos externos para tmohentai.com
+│   TMOH.json                # (opcional) Metadatos externos para tmoh.com
 │   .tmo_config.json         # Configuración persistente (generado automáticamente)
 │   .tmd_progress.json       # Estado del lote actual para reanudación (generado automáticamente)
 │   downloads_history.txt    # Historial de descargas (generado automáticamente)
@@ -373,7 +373,7 @@ TMDownloader/
 │
 ├── scrapers/
 │       BaseScraper.py       # Clase base abstracta para nuevos scrapers
-│       TMOHentaiScraper.py  # Scraper tmohentai.com (con soporte TMOH.json)
+│       TMOHentaiScraper.py  # Scraper tmoh.com (con soporte TMOH.json)
 │       LectorHentaiScraper.py
 │
 └── utils/
@@ -393,7 +393,7 @@ TMDownloader/
 
 | Sitio               | Scraper                  | Estado   |
 |---------------------|--------------------------|----------|
-| `tmohentai.com`     | `TMOHentaiScraper`       | ✓ Activo |
+| `tmoRojo`           | `TMOHentaiScraper`       | ✓ Activo |
 | `lectorhentai.com`  | `LectorHentaiScraper`    | ✓ Activo |
 | ~~`onfmangas.com`~~ | ~~`ONFMangasScraper`~~   | ✗ Roto   |
 
