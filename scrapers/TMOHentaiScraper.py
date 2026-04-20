@@ -38,6 +38,8 @@ class TMOHentaiScraper(BaseScraper):
 
         # Índice de metadata del JSON externo: { content_id: meta_dict }
         self._json_index: dict[str, dict] = {}
+        self._json_load_error: str | None = None  # error diferido
+        self._json_announced: bool = False         # evitar repetir el aviso
         self._load_tmoh_json()
 
     # ── Carga de TMOH.json ────────────────────────────────────────────────────
@@ -80,10 +82,12 @@ class TMOHentaiScraper(BaseScraper):
                 if cid:
                     self._json_index[cid] = entry
 
-            if self._json_index:
-                print(f"  [i] TMOH.json cargado: {len(self._json_index)} entradas indexadas.")
+            # No imprimimos aquí: el scraper se instancia al importar
+            # ScraperFactory, antes de que argparse procese --version/--help.
+            # El aviso se emite en get_metadata() al hacer la primera descarga.
+            pass
         except Exception as e:
-            print(f"  [!] Error al leer TMOH.json: {e}")
+            self._json_load_error = str(e)
 
     @staticmethod
     def _id_from_url(url: str) -> str:
@@ -146,6 +150,14 @@ class TMOHentaiScraper(BaseScraper):
         """
         meta = super().get_metadata(session, cid)
         meta["Web"] = f"{self._BASE}/contents/{cid}"
+
+        # Emitir aviso de TMOH.json una sola vez, en el contexto de una descarga real
+        if not self._json_announced:
+            self._json_announced = True
+            if self._json_load_error:
+                print(f"  [!] Error al leer TMOH.json: {self._json_load_error}")
+            elif self._json_index:
+                print(f"  [i] TMOH.json: {len(self._json_index)} entradas cargadas.")
 
         # ── Fuente 1: TMOH.json ────────────────────────────────────────────
         json_meta = self._meta_from_json(cid)
