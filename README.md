@@ -64,7 +64,7 @@ Descargador de manga con soporte para múltiples sitios, empaquetado en `.cbz` c
 ### Termux (Android)
 
 **1. Preparar el entorno**
-
+> instalar Termux desde: [F-Droid/termux](https://f-droid.org/packages/com.termux/)
 ```bash
 pkg update && pkg upgrade -y && pkg install python git -y
 ```
