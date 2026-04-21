@@ -195,18 +195,19 @@ class TMOHentaiScraper(BaseScraper):
 
         meta = {}
 
-        title = entry.get("title", "").strip()
+        # Usar or "" para convertir None (null en JSON) a cadena vacía
+        title = (entry.get("title") or "").strip()
         if title:
             meta["Title"]  = title
             meta["Series"] = title
 
-        artist = entry.get("artist", "").strip()
-        author = entry.get("author", "").strip()
+        artist = (entry.get("artist") or "").strip()
+        author = (entry.get("author") or "").strip()
         writer = ", ".join(filter(None, [author, artist]))
         if writer:
             meta["Writer"] = writer
 
-        description = entry.get("description", "").strip()
+        description = (entry.get("description") or "").strip()
         if description:
             meta["Summary"] = description[:500]
 
