@@ -104,25 +104,34 @@ class TMOHentaiScraper(BaseScraper):
     def get_image_tasks(self, session, cid: str, dest_dir) -> list:
         """
         Probing HEAD para descubrir imágenes en el CDN.
+        Para cada índice rota el host de inicio pero prueba TODOS los hosts,
+        igual que hace el navegador (y el script original).
         Retorna lista de (url, dest_path, referer).
         """
         tasks   = []
         referer = f"{self._BASE}/reader/{cid}/cascade"
         fails   = 0
+        n_hosts = len(self.cdn_hosts)
 
         print(f"  Patrón CDN: https://{self.cdn_hosts[0]}/contents/{cid}/000.webp")
 
         for i in range(1000):
             found = False
-            host  = self.cdn_hosts[i % len(self.cdn_hosts)]
+            # Rotar el host de inicio según el índice, luego probar todos en orden
+            host_order = (
+                self.cdn_hosts[i % n_hosts:] + self.cdn_hosts[:i % n_hosts]
+            )
 
             for ext in self.extensions:
-                img_url = f"https://{host}/contents/{cid}/{i:03d}{ext}"
-                if self._head_ok(session, img_url, referer):
-                    dest_file = Path(dest_dir) / f"{i:03d}{ext}"
-                    tasks.append((img_url, dest_file, referer))
-                    found = True
+                if found:
                     break
+                for host in host_order:
+                    img_url = f"https://{host}/contents/{cid}/{i:03d}{ext}"
+                    if self._head_ok(session, img_url, referer):
+                        dest_file = Path(dest_dir) / f"{i:03d}{ext}"
+                        tasks.append((img_url, dest_file, referer))
+                        found = True
+                        break
 
             if found:
                 fails = 0
@@ -286,15 +295,21 @@ class TMOHentaiScraper(BaseScraper):
         """Generador de URLs (compatibilidad con flujos alternativos)."""
         referer = f"{self._BASE}/reader/{cid}/cascade"
         fails   = 0
+        n_hosts = len(self.cdn_hosts)
         for i in range(1000):
             found = False
-            host  = self.cdn_hosts[i % len(self.cdn_hosts)]
+            host_order = (
+                self.cdn_hosts[i % n_hosts:] + self.cdn_hosts[:i % n_hosts]
+            )
             for ext in self.extensions:
-                img_url = f"https://{host}/contents/{cid}/{i:03d}{ext}"
-                if self._head_ok(session, img_url, referer):
-                    yield img_url
-                    found = True
+                if found:
                     break
+                for host in host_order:
+                    img_url = f"https://{host}/contents/{cid}/{i:03d}{ext}"
+                    if self._head_ok(session, img_url, referer):
+                        yield img_url
+                        found = True
+                        break
             fails = 0 if found else fails + 1
             if fails >= 3:
                 break
