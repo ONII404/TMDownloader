@@ -414,7 +414,6 @@ def _print_vpn_reminder(current_batch, total_batches):
     print(_c("90",    "    • Usar una conexión diferente (datos móviles / WiFi)"))
     print(_c("93;1", f"  {sep}"))
     print()
-    _ask(_c("90", "  Pulsa Enter para continuar con el siguiente lote..."))
 
 def _print_batch_summary(ok, failed):
     sep = "─" * 52
